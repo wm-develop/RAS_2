@@ -4,4 +4,3 @@ SQLSERVER_USER = "wdsfzl"
 SQLSERVER_PASSWORD = "wds#WDS9200"
 SQLSERVER_DATABASE = "wdsfzl"
 RAS_PATH = "/home/v01dwm/Foziling_Model_1030"
-RAS_PATH_WIN = r'D:\Desktop\Foziling_Model_1015'
