@@ -3,6 +3,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 from to_csv import insert_time_and_save_to_csv
 from hdf_handler import HDFHandler
@@ -18,6 +19,9 @@ import numpy as np
 
 
 app = Flask(__name__)
+
+# Enable CORS for the entire app
+CORS(app)
 
 @app.route('/set_2d_hydrodynamic_data', methods=['post'])
 def set_2d_hydrodynamic_data():
@@ -123,8 +127,8 @@ def set_2d_hydrodynamic_data():
         illegal_chars = set('\\/:*?"<>|')
         sanitized_filename = ''.join(c for c in scheme_name if c not in illegal_chars)
         # 将水深计算结果输出为csv文件
-        insert_time_and_save_to_csv(depth_data, f"{sanitized_filename}_output.csv")
-        logger.info(f"水深数据已写入到{sanitized_filename}_output.csv")
+        insert_time_and_save_to_csv(depth_data, "output.csv")
+        logger.info("水深数据已写入到output.csv")
     except Exception as e:
         logger.error(e)
         return "Failed: 水深数据提取和存储过程中出现错误"
@@ -162,8 +166,8 @@ def set_2d_hydrodynamic_data():
         attributes_df[f'depth_{max_index}'] = depth_count[:, max_index]
 
         # 输出为shp格式并保存
-        gdf.to_file(f'{sanitized_filename}_max_water_area.shp')
-        logger.info(f"最大淹没面积shp文件已保存到{sanitized_filename}_max_water_area.shp")
+        gdf.to_file('max_water_area.shp')
+        logger.info("最大淹没面积shp文件已保存到max_water_area.shp")
     except Exception as e:
         logger.error(e)
         return "Failed: 计算最大淹没面积时出现错误"
@@ -205,7 +209,7 @@ def set_2d_hydrodynamic_data():
 
 if __name__ == '__main__':
     # 调试时用这行代码启动服务器
-    app.run(host="0.0.0.0", port=19998, debug=True)
+    app.run(host="0.0.0.0", port=19998, debug=False)
 
     # 以下代码在正式生产环境用
     # server = WSGIServer(app.config["SERVER_NAME"] ,app)
