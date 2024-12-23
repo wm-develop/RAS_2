@@ -5,6 +5,18 @@ from datetime import datetime
 from logger import logger
 
 
+class NoArraysInDictionaryError(Exception):
+    def __init__(self, message="无法查询到任何水库的出库流量过程"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class ArrayLengthsMismatchError(Exception):
+    def __init__(self, message="数据库中各水库出库流量的时间步数不完全相同"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class SQLServerHandler:
     def __init__(self, server, port, username, password, database):
         """
@@ -81,7 +93,8 @@ class SQLServerHandler:
         flow_data = {
             "磨子潭": None,
             "白莲崖": None,
-            "佛子岭": None
+            "佛子岭": None,
+            "响洪甸": None
         }
 
         # 解析查询结果
@@ -94,9 +107,19 @@ class SQLServerHandler:
                 flow_data["白莲崖"] = flow_values
             elif "FZL" in objdesc:
                 flow_data["佛子岭"] = flow_values
+            elif "XHD" in objdesc:
+                flow_data["响洪甸"] = flow_values
+
+        # 判断flow_data中各个一维数组中所包含的元素数量是否相同
+        lengths = [len(arr) for arr in flow_data.values()]
+        if not lengths:
+            raise NoArraysInDictionaryError()
+        else:
+            if not all(length == lengths[0] for length in lengths):
+                raise ArrayLengthsMismatchError()
 
         # 将结果转换为二维数组
-        ndarray = np.array([flow_data["磨子潭"], flow_data["白莲崖"], flow_data["佛子岭"]], dtype=float).T
+        ndarray = np.array([flow_data["磨子潭"], flow_data["白莲崖"], flow_data["佛子岭"], flow_data["响洪甸"]], dtype=float).T
         cursor.close()
         conn.close()
         return ndarray

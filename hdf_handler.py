@@ -87,7 +87,23 @@ class HDFHandler:
         self._modify_bc(f, qc_list1, start_date, end_date, '2D: Perimeter 1 BCLine: Bailianya Inflow')
         self._modify_bc(f, qc_list2, start_date, end_date, '2D: Perimeter 1 BCLine: Mozitan Inflow')
         # 虽然响洪甸不能从数据库中读取出库流量，但需要保证它的时序数量为start_date到end_date
-        self._modify_xianghongdian(f, start_date, end_date)
+        self._modify_xianghongdian_0(f, start_date, end_date)
+
+        # 修改SA Conn的边界条件
+        self._modify_sa_conn(f, qc_list3, start_date, end_date, 'SA Conn: Foziling Dam (Outlet TS: Foziling Boundar)')
+        # 修改Normal Depth出流的起始时间
+        self._modify_normal_depths(f, start_date, end_date, '2D: Perimeter 1 BCLine: Hengpaitou Outflow')
+
+        f.close()
+
+    def modify_boundary_conditions_with_xhd(self, qc_list1, qc_list2, qc_list3, qc_list4, start_date, end_date):
+        f = h5py.File(self.filepath, 'a')
+
+        # 使用通用函数处理多个边界条件
+        # 修改三个入流的边界条件
+        self._modify_bc(f, qc_list1, start_date, end_date, '2D: Perimeter 1 BCLine: Bailianya Inflow')
+        self._modify_bc(f, qc_list2, start_date, end_date, '2D: Perimeter 1 BCLine: Mozitan Inflow')
+        self._modify_bc(f, qc_list4, start_date, end_date, '2D: Perimeter 1 BCLine: Xianghongdian Inflow')
 
         # 修改SA Conn的边界条件
         self._modify_sa_conn(f, qc_list3, start_date, end_date, 'SA Conn: Foziling Dam (Outlet TS: Foziling Boundar)')
@@ -256,6 +272,58 @@ class HDFHandler:
         # 按正态分布随机生成给定时间范围内的逐时流量过程
         date_range = pd.date_range(self.ymdhm_start, self.ymdhm_end, freq='H')
         flow_data = np.random.normal(loc=mean, scale=std_dev, size=len(date_range))
+        # 生成符合hdf要求的时间序列格式
+        time_list = list()
+        for i in range(len(flow_data)):
+            time_list.append(i / 24)
+        time_array = np.array(time_list)
+        # 返回符合hdf要求的时间-流量过程
+        flow_data = np.column_stack((time_array, flow_data))
+
+        # 记录原始属性
+        tfa_data = xhd_dataset.attrs['2D Flow Area']
+        bl_data = xhd_dataset.attrs['BC Line']
+        cts_data = xhd_dataset.attrs['Check TW Stage']
+        dt_data = xhd_dataset.attrs['Data Type']
+        esfdf_data = xhd_dataset.attrs['EG Slope For Distributing Flow']
+        ed_data = xhd_dataset.attrs['End Date']
+        ff_data = xhd_dataset.attrs['Face Fraction']
+        fi_data = xhd_dataset.attrs['Face Indexes']
+        fpi_data = xhd_dataset.attrs['Face Point Indexes']
+        i_data = xhd_dataset.attrs['Interval']
+        ni_data = xhd_dataset.attrs['Node Index']
+        sd_data = xhd_dataset.attrs['Start Date']
+
+        # 删除旧的 dataset
+        del f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs']['2D: Perimeter 1 BCLine: Xianghongdian Inflow']
+
+        # 创建新的 dataset
+        new_bc_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs'].create_dataset(
+            '2D: Perimeter 1 BCLine: Xianghongdian Inflow', data=flow_data)
+
+        # 恢复原来的属性，并修改开始和结束时间
+        # 在新的Dataset中按照记录下来的属性重新新建
+        new_bc_dataset.attrs.create('2D Flow Area', tfa_data, dtype=tfa_data.dtype)
+        new_bc_dataset.attrs.create('BC Line', bl_data, dtype=bl_data.dtype)
+        new_bc_dataset.attrs.create('Check TW Stage', cts_data, dtype=cts_data.dtype)
+        new_bc_dataset.attrs.create('Data Type', dt_data, dtype=dt_data.dtype)
+        new_bc_dataset.attrs.create('EG Slope For Distributing Flow', esfdf_data, dtype=esfdf_data.dtype)
+        new_bc_dataset.attrs.create('Face Fraction', ff_data, dtype=ff_data.dtype)
+        new_bc_dataset.attrs.create('Face Indexes', fi_data, dtype=fi_data.dtype)
+        new_bc_dataset.attrs.create('Face Point Indexes', fpi_data, dtype=fpi_data.dtype)
+        new_bc_dataset.attrs.create('Interval', i_data, dtype=i_data.dtype)
+        new_bc_dataset.attrs.create('Node Index', ni_data, dtype=ni_data.dtype)
+
+        new_bc_dataset.attrs.create('End Date', end_date, dtype=ed_data.dtype)
+        new_bc_dataset.attrs.create('Start Date', start_date, dtype=sd_data.dtype)
+
+    def _modify_xianghongdian_0(self, f, start_date, end_date, mean=1000.0, std_dev=10.0):
+        xhd_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs']['2D: Perimeter 1 BCLine: Xianghongdian Inflow']
+
+        # 生成全为0的flow_data
+        date_range = pd.date_range(self.ymdhm_start, self.ymdhm_end, freq='H')
+        flow_data = np.random.normal(loc=mean, scale=std_dev, size=len(date_range))
+        flow_data = np.zeros_like(flow_data)
         # 生成符合hdf要求的时间序列格式
         time_list = list()
         for i in range(len(flow_data)):

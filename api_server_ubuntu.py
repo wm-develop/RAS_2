@@ -9,13 +9,11 @@ from flask_cors import CORS
 from to_csv import insert_time_and_save_to_csv
 from hdf_handler import HDFHandler
 from sqlserver_handler import SQLServerHandler
-from sqlserver_handler import NoArraysInDictionaryError
-from sqlserver_handler import ArrayLengthsMismatchError
 from post_processor import PostProcessor
 from ras_handler import RASHandler
 from time_format_converter import TimeFormatConverter
 from velocity_to_cells import velocity_to_cells
-from config import *
+from config_ubuntu import *
 from logger import logger
 import geopandas as gpd
 import numpy as np
@@ -46,6 +44,8 @@ def set_2d_hydrodynamic_data():
 
     try:
         ymdhm_start, ymdhm_end = sqlserver_handler.get_start_end_time(scheme_name)
+        if ymdhm_start is None or ymdhm_end is None:
+            return "Failed：从数据库中获取模拟时段失败"
     except Exception as e:
         logger.error(e)
         return "Failed：从数据库中获取模拟时段失败"
@@ -58,13 +58,7 @@ def set_2d_hydrodynamic_data():
         xq_list1 = xq_list[:, 1]
         xq_list2 = xq_list[:, 0]
         xq_list3 = xq_list[:, 2]
-        xq_list4 = xq_list[:, 3]
-    except NoArraysInDictionaryError as e:
-        logger.error(e)
-        return "Failed: 无法查询到任何水库的出库流量过程"
-    except ArrayLengthsMismatchError as e:
-        logger.error(e)
-        return "Failed: 数据库中各水库出库流量的时间步数不完全相同"
+        # xq_list4 = []
     except Exception as e:
         logger.error(e)
         return "Failed: 从数据库中读取出库流量失败"
@@ -83,10 +77,8 @@ def set_2d_hydrodynamic_data():
         # 修改.p01.hdf文件，修改其中的边界条件并把Results删除后改名为.p01.tmp.hdf
         hdf_handler = HDFHandler(p01_hdf_path, ymdhm_start, ymdhm_end)
         # 修改三个入流边界、一个SA Conn边界和一个Normal Depths边界
-        # hdf_handler.modify_boundary_conditions(
-        #     xq_list1, xq_list2, xq_list3, start_time_b01_and_hdf, end_time_b01_and_hdf)
-        hdf_handler.modify_boundary_conditions_with_xhd(
-            xq_list1, xq_list2, xq_list3, xq_list4, start_time_b01_and_hdf, end_time_b01_and_hdf)
+        hdf_handler.modify_boundary_conditions(
+            xq_list1, xq_list2, xq_list3, start_time_b01_and_hdf, end_time_b01_and_hdf)
 
         # 获取符合hdf_handler.modify_plan_data方法要求的start_date和end_date，为该方法的调用做好准备
         start_time_plan_data = time_format_converter.convert(ymdhm_start, 'simulation')
@@ -147,7 +139,7 @@ def set_2d_hydrodynamic_data():
     try:
         # 修改为研究区的shp文件
         logger.info("正在计算最大淹没面积...")
-        shp1 = RAS_PATH + os.path.sep + 'demo2' + os.path.sep + 'demo2.shp'
+        shp1 = RAS_PATH + os.path.sep + 'demo' + os.path.sep + 'demo_20241022.shp'
         gdf = gpd.read_file(shp1)
         # 提取属性表并保存为矩阵形式
         attributes_df = gdf
