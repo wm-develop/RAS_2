@@ -19,6 +19,7 @@ from config import *
 from logger import logger
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 
 
 app = Flask(__name__)
@@ -143,6 +144,18 @@ def set_2d_hydrodynamic_data():
         logger.error(e)
         return "Failed: 水深数据提取和存储过程中出现错误"
 
+    bailianya_dam_depth_path = output_path + os.path.sep + "bailianya.csv"
+    mozitan_dam_depth_path = output_path + os.path.sep + "mozitan.csv"
+    foziling_dam_depth_path = output_path + os.path.sep + "foziling.csv"
+    bailianya_grids = [25495, 25494, 25496, 25492]
+    mozitan_grids = [24834, 24833, 24835, 24832]
+    foziling_grids = [24418, 24417, 17369, 17367]
+    bailianya_dam_depth_result= calculate_and_save_row_means(csv_path, bailianya_dam_depth_path, bailianya_grids)
+    mozitan_dam_depth_result = calculate_and_save_row_means(csv_path, mozitan_dam_depth_path, mozitan_grids)
+    foziling_dam_depth_result = calculate_and_save_row_means(csv_path, foziling_dam_depth_path, foziling_grids)
+    if bailianya_dam_depth_result == 1 or mozitan_dam_depth_result == 1 or foziling_dam_depth_result == 1:
+        return "Failed: 提取坝下流量过程中出现错误"
+
     # 下面是算最大淹没面积的发生时刻
     try:
         # 修改为研究区的shp文件
@@ -216,6 +229,34 @@ def set_2d_hydrodynamic_data():
     #         logger.info(f'第{i + 1}个时间步已处理完成')
 
     return "success"
+
+def calculate_and_save_row_means(input_file_path, output_file_path, column_indices):
+    """
+    从CSV文件中提取指定列并计算每行的平均值，然后将结果保存到新的CSV文件中。
+
+    参数:
+    - input_file_path: 输入 CSV 文件的路径。
+    - output_file_path: 输出 CSV 文件的路径。
+    - column_indices: 需要提取的列索引列表（0开始索引）。
+    """
+    try:
+        # 读取指定的列，读取所有行
+        data = pd.read_csv(input_file_path, usecols=column_indices)
+
+        # 计算每行的平均值
+        row_means = data.mean(axis=1)
+
+        # 将结果转换为 DataFrame
+        result_df = pd.DataFrame(row_means)
+
+        # 保存结果到新的 CSV 文件，不包含行索引和列名
+        result_df.to_csv(output_file_path, index=False, header=False)
+
+        print(f"Row means have been saved to {output_file_path}.")
+
+    except Exception as e:
+        logger.error("Failed: 提取坝下流量过程中出现错误")
+        return 1
 
 
 if __name__ == '__main__':
