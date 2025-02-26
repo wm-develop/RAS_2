@@ -144,17 +144,19 @@ def set_2d_hydrodynamic_data():
         logger.error(e)
         return "Failed: 水深数据提取和存储过程中出现错误"
 
+    logger.info("正在提取坝下流量过程...")
     bailianya_dam_depth_path = output_path + os.path.sep + "bailianya.csv"
     mozitan_dam_depth_path = output_path + os.path.sep + "mozitan.csv"
     foziling_dam_depth_path = output_path + os.path.sep + "foziling.csv"
     bailianya_grids = [25495, 25494, 25496, 25492]
     mozitan_grids = [24834, 24833, 24835, 24832]
     foziling_grids = [24418, 24417, 17369, 17367]
-    bailianya_dam_depth_result= calculate_and_save_row_means(csv_path, bailianya_dam_depth_path, bailianya_grids)
+    bailianya_dam_depth_result = calculate_and_save_row_means(csv_path, bailianya_dam_depth_path, bailianya_grids)
     mozitan_dam_depth_result = calculate_and_save_row_means(csv_path, mozitan_dam_depth_path, mozitan_grids)
     foziling_dam_depth_result = calculate_and_save_row_means(csv_path, foziling_dam_depth_path, foziling_grids)
     if bailianya_dam_depth_result == 1 or mozitan_dam_depth_result == 1 or foziling_dam_depth_result == 1:
         return "Failed: 提取坝下流量过程中出现错误"
+    logger.info("坝下流量过程提取成功")
 
     # 下面是算最大淹没面积的发生时刻
     try:
@@ -252,7 +254,7 @@ def calculate_and_save_row_means(input_file_path, output_file_path, column_indic
         # 保存结果到新的 CSV 文件，不包含行索引和列名
         result_df.to_csv(output_file_path, index=False, header=False)
 
-        print(f"Row means have been saved to {output_file_path}.")
+        logger.info(f"Row means have been saved to {output_file_path}.")
 
     except Exception as e:
         logger.error("Failed: 提取坝下流量过程中出现错误")
