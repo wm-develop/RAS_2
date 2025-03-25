@@ -27,3 +27,9 @@ class PostProcessor:
             if data == 'nan':
                 break
         return cells_number
+
+    def get_water_level(self, wse_data, real_mesh):
+        """
+        返回记录水位的二维数组，行代表时间步，列代表网格FID
+        """
+        return wse_data[:, :real_mesh]
