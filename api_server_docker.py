@@ -153,9 +153,9 @@ def set_2d_hydrodynamic_data():
         mozitan_grids = [24834, 24833, 24835, 24832]
         foziling_grids = [24418, 24417, 17369, 17367]
         water_level_array = post_processor.get_water_level(wse_data, real_mesh)
-        bailianya_dam_depth_result = calculate_and_save_row_means(water_level_array, bailianya_dam_depth_path, bailianya_grids)
-        mozitan_dam_depth_result = calculate_and_save_row_means(water_level_array, mozitan_dam_depth_path, mozitan_grids)
-        foziling_dam_depth_result = calculate_and_save_row_means(water_level_array, foziling_dam_depth_path, foziling_grids)
+        bailianya_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array, bailianya_dam_depth_path, bailianya_grids)
+        mozitan_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array, mozitan_dam_depth_path, mozitan_grids)
+        foziling_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array, foziling_dam_depth_path, foziling_grids)
         if bailianya_dam_depth_result == 1 or mozitan_dam_depth_result == 1 or foziling_dam_depth_result == 1:
             raise RuntimeError("Failed: 提取坝下流量过程中出现错误")
         logger.info("坝下流量过程提取成功")
@@ -236,37 +236,6 @@ def set_2d_hydrodynamic_data():
     #         logger.info(f'第{i + 1}个时间步已处理完成')
 
     return "success"
-
-def calculate_and_save_row_means(water_level_array, output_file_path, column_indices):
-    """
-    从water_level_array中提取指定列并计算每行的平均值，然后将结果保存到新的CSV文件中。
-
-    参数:
-    - water_level_array: 保存水位的二维数组。行代表时间步，列代表网格FID。
-    - output_file_path: 输出 CSV 文件的路径。
-    - column_indices: 需要提取的列索引列表（0开始索引）。
-    """
-    try:
-        # 读取指定的列，读取所有行
-        data = water_level_array[:, column_indices]
-
-        # 计算每行的平均值
-        row_means = np.mean(data, axis=1)
-
-        # 将结果转换为 DataFrame
-        result_df = pd.DataFrame(row_means)
-
-        # 保存结果到新的 CSV 文件，不包含行索引和列名
-        result_df.to_csv(output_file_path, index=False, header=False)
-
-        logger.info(f"Row means have been saved to {output_file_path}.")
-
-    except IndexError as e:
-        logger.error("Failed: 提取坝下流量过程中出现错误：列索引越界")
-        return 1
-    except Exception as e:
-        logger.error("Failed: 提取坝下流量过程中出现未知错误")
-        return 1
 
 
 if __name__ == '__main__':
