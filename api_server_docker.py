@@ -53,7 +53,6 @@ def set_2d_hydrodynamic_data():
 
     # 以下为4个入流边界条件，即需要从数据库中读取下面4个水库的出库流量作为边界条件
     # xq_list1为白莲崖水库，xq_list2为磨子潭水库，xq_list3为佛子岭大坝，xq_list4为响洪甸水库
-    # TODO: 由于响洪甸水库暂时无法实时接入出库流量，故采用假定的正态分布流量过程
     try:
         xq_list = sqlserver_handler.q_from_table(scheme_name, ymdhm_start, ymdhm_end)
         xq_list1 = xq_list[:, 1]
@@ -86,7 +85,7 @@ def set_2d_hydrodynamic_data():
         # 修改三个入流边界、一个SA Conn边界和一个Normal Depths边界
         # hdf_handler.modify_boundary_conditions(
         #     xq_list1, xq_list2, xq_list3, start_time_b01_and_hdf, end_time_b01_and_hdf)
-        hdf_handler.modify_boundary_conditions_with_xhd(
+        hdf_handler.modify_boundary_conditions_with_xhd_hpt_rating_curve(
             xq_list1, xq_list2, xq_list3, xq_list4, start_time_b01_and_hdf, end_time_b01_and_hdf)
 
         # 获取符合hdf_handler.modify_plan_data方法要求的start_date和end_date，为该方法的调用做好准备
@@ -145,7 +144,7 @@ def set_2d_hydrodynamic_data():
         return "Failed: 水深数据提取和存储过程中出现错误"
 
     try:
-        logger.info("正在提取坝下流量过程...")
+        logger.info("正在提取坝下水位过程...")
         bailianya_dam_depth_path = output_path + os.path.sep + "bailianya.csv"
         mozitan_dam_depth_path = output_path + os.path.sep + "mozitan.csv"
         foziling_dam_depth_path = output_path + os.path.sep + "foziling.csv"
@@ -157,8 +156,8 @@ def set_2d_hydrodynamic_data():
         mozitan_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array, mozitan_dam_depth_path, mozitan_grids)
         foziling_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array, foziling_dam_depth_path, foziling_grids)
         if bailianya_dam_depth_result == 1 or mozitan_dam_depth_result == 1 or foziling_dam_depth_result == 1:
-            raise RuntimeError("Failed: 提取坝下流量过程中出现错误")
-        logger.info("坝下流量过程提取成功")
+            raise RuntimeError("Failed: 提取坝下水位过程中出现错误")
+        logger.info("坝下水位过程提取成功")
     except Exception as e:
         logger.error(e)
         return f"Failed: {e}"
@@ -186,7 +185,7 @@ def set_2d_hydrodynamic_data():
         for i in range(len(depth_data_final)):
             for j in range(num_shapefiles):
                 x = depth_data_final[i, j + 1]
-                if x > 0:
+                if x > 0.01:  # 仅当水深>0.01m时才认为是淹没
                     depth_count[i][j] = depth_data_final[i][0] * 0.001 * 0.001
                 else:
                     depth_count[i][j] = 0
