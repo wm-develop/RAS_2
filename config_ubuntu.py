@@ -3,4 +3,4 @@ SQLSERVER_PORT = 10281
 SQLSERVER_USER = "wdsfzl"
 SQLSERVER_PASSWORD = "wds#WDS9200"
 SQLSERVER_DATABASE = "wdsfzl"
-RAS_PATH = "/home/v01dwm/Foziling_Model_1127_ubuntu_test"
+RAS_PATH = "/media/pc/data/Fzl20250330wm"

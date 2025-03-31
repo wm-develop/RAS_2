@@ -128,14 +128,6 @@ class HDFHandler:
 
         f.close()
 
-    def modify_boundary_conditions_only_fzl(self, qc_list3, start_date, end_date):
-        f = h5py.File(self.filepath, 'a')
-
-        # 修改SA Conn的边界条件
-        self._modify_sa_conn(f, qc_list3, start_date, end_date, 'SA Conn: Foziling Dam (Outlet TS: Foziling Boundar)')
-
-        f.close()
-
     def _modify_sa_conn(self, f, qc_list, start_date, end_date, dataset_name):
         """
         修改SA Conn边界条件的函数
@@ -314,10 +306,10 @@ class HDFHandler:
         sd_data = nd_dataset.attrs['Start Date']
 
         # 删除旧的 dataset
-        del f['Event Conditions']['Unsteady']['Boundary Conditions']['Normal Depths'][dataset_name]
+        del f['Event Conditions']['Unsteady']['Boundary Conditions']['Rating Curves'][dataset_name]
 
         # 创建新的 dataset
-        new_bc_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Normal Depths'].create_dataset(
+        new_bc_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Rating Curves'].create_dataset(
             dataset_name, data=nd_data)
 
         # 恢复原来的属性，并修改开始和结束时间

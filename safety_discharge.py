@@ -18,13 +18,13 @@ from hdf_handler import HDFHandler
 from post_processor import PostProcessor
 from ras_handler import RASHandler
 from time_format_converter import TimeFormatConverter
-from config import *
+from config_ubuntu import *
 from logger import logger
 
 
 b01_path = os.path.join(RAS_PATH, f"FZLall.b01")
 p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
-output_path = "/home/v01dwm/safety_discharge_results"
+output_path = "/media/pc/data/safety_discharge_results"
 
 ymdhm_start = "2025-03-20 08:00"
 ymdhm_end = "2025-03-23 07:00"
@@ -37,11 +37,11 @@ flood_Q = {name: None for name in FID_name}
 for i in range(100, 10100, 200):
     logger.info(f"开始模拟Q = {i}的工况...")
     # 构造72小时恒定流ndarray
-    xq_list3 = np.ones(72) * i
+    xq_list = np.ones(72) * i
     try:
         logger.info(f"将Q = {i}写入佛子岭水库边界条件中...")
         # 修改边界条件
-        ras_handler = RASHandler(xq_list3)
+        ras_handler = RASHandler(xq_list)
         time_format_converter = TimeFormatConverter()
         # 修改b01文件
         start_time_b01_and_hdf = time_format_converter.convert(ymdhm_start, 'b01')
@@ -51,7 +51,13 @@ for i in range(100, 10100, 200):
         # 修改.p01.hdf文件，修改其中的边界条件并把Results删除后改名为.p01.tmp.hdf
         hdf_handler = HDFHandler(p01_hdf_path, ymdhm_start, ymdhm_end)
         # 修改佛子岭水库出库边界
-        hdf_handler.modify_boundary_conditions_only_fzl(xq_list3, start_time_b01_and_hdf, end_time_b01_and_hdf)
+        hdf_handler.modify_boundary_conditions_with_xhd_hpt_rating_curve(xq_list, xq_list, xq_list, xq_list, start_time_b01_and_hdf, end_time_b01_and_hdf)
+
+        # 获取符合hdf_handler.modify_plan_data方法要求的start_date和end_date，为该方法的调用做好准备
+        start_time_plan_data = time_format_converter.convert(ymdhm_start, 'simulation')
+        end_time_plan_data = time_format_converter.convert(ymdhm_end, 'simulation')
+        # 修改p01.hdf文件中的Plan Data->Plan Information中的Simulation End Time、Simulation Start Time和Time Window
+        hdf_handler.modify_plan_data(start_time_plan_data, end_time_plan_data)
 
         # 得到.p01.tmp.hdf供Linux ras调用
         hdf_handler.remove_hdf_results()
