@@ -19,22 +19,30 @@ from post_processor import PostProcessor
 from ras_handler import RASHandler
 from time_format_converter import TimeFormatConverter
 from config_ubuntu import *
-from logger import logger
+import logging
+from log_handler import ImmediateFileHandler
 
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = ImmediateFileHandler('safety_discharge.log')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 b01_path = os.path.join(RAS_PATH, f"FZLall.b01")
 p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
-output_path = "/media/pc/data/safety_discharge_results"
+output_path = "/home/v01dwm/safety_discharge_results"
 
 ymdhm_start = "2025-03-20 08:00"
 ymdhm_end = "2025-03-23 07:00"
 
-FID = [14569, 8340, 1944, 5785, 10732]
+FID = [26502, 8340, 2016, 5785, 10732]
 FID_name = ["两河口", "霍山县中学", "青山乡", "下符桥镇政府", "迎驾酒厂"]
 # 存储各点的安全泄量
 flood_Q = {name: None for name in FID_name}
 
-for i in range(100, 10100, 200):
+for i in range(100, 10100, 300):
     logger.info(f"开始模拟Q = {i}的工况...")
     # 构造72小时恒定流ndarray
     xq_list = np.ones(72) * i
@@ -51,7 +59,7 @@ for i in range(100, 10100, 200):
         # 修改.p01.hdf文件，修改其中的边界条件并把Results删除后改名为.p01.tmp.hdf
         hdf_handler = HDFHandler(p01_hdf_path, ymdhm_start, ymdhm_end)
         # 修改佛子岭水库出库边界
-        hdf_handler.modify_boundary_conditions_with_xhd_hpt_rating_curve(xq_list, xq_list, xq_list, xq_list, start_time_b01_and_hdf, end_time_b01_and_hdf)
+        hdf_handler.modify_boundary_conditions_safety_discharge(xq_list, start_time_b01_and_hdf, end_time_b01_and_hdf)
 
         # 获取符合hdf_handler.modify_plan_data方法要求的start_date和end_date，为该方法的调用做好准备
         start_time_plan_data = time_format_converter.convert(ymdhm_start, 'simulation')
@@ -74,7 +82,7 @@ for i in range(100, 10100, 200):
         logger.error(e)
 
     try:
-        logger.info("开始将水深数据存储到csv文件中......")
+        logger.info("开始提取水深数据......")
         # 从.p01.hdf结果文件中读取需要的数据
         cells_minimum_elevation_data = hdf_handler.read_dataset(
             'Cells Minimum Elevation')
@@ -89,21 +97,23 @@ for i in range(100, 10100, 200):
         logger.info("水深数据提取已完成")
         # 查找给定网格是否淹没
         for index, cell in enumerate(FID):
-            # 认为水深>0.01m时算作淹没
-            if (depth_data[:, cell] < 0.01).all():
+            # 认为水深>=0.1m时算作淹没
+            if not (depth_data[:, cell] < 0.1).all():
                 if flood_Q[FID_name[index]] is None:
                     logger.info(f"保证 {FID_name[index]} 不淹没的安全泄量为Q = {i}")
                     flood_Q[FID_name[index]] = i
 
-        csv_path = output_path + os.path.sep + f"output_{i}.csv"
-        # 将水深计算结果输出为csv文件
-        insert_time_and_save_to_csv(depth_data, csv_path)
-        logger.info(f"水深数据已写入到{csv_path}")
+        # csv_path = output_path + os.path.sep + f"output_{i}.csv"
+        # # 将水深计算结果输出为csv文件
+        # insert_time_and_save_to_csv(depth_data, csv_path)
+        # logger.info(f"水深数据已写入到{csv_path}")
 
         # 判断是否已经得到所有的安全泄量
         if all(value is not None for value in flood_Q.values()):
             break
-
+        for key, value in flood_Q.items():
+            if value is not None:
+                logger.info(f"{key}的安全泄量为Q = {value}")
         logger.info("------------------------")
     except Exception as e:
         logger.error(e)

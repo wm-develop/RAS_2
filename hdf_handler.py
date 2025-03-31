@@ -128,6 +128,20 @@ class HDFHandler:
 
         f.close()
 
+    def modify_boundary_conditions_safety_discharge(self, qc_list1, start_date, end_date):
+        f = h5py.File(self.filepath, 'a')
+
+        # 使用通用函数处理多个边界条件
+        # 修改SA Conn的边界条件
+        self._modify_bc_safety_discharge(f, start_date, end_date, '2D: Perimeter 1 BCLine: Bailianya Inflow')
+        self._modify_bc_safety_discharge(f, start_date, end_date, '2D: Perimeter 1 BCLine: Mozitan Inflow')
+        self._modify_bc_safety_discharge(f, start_date, end_date, '2D: Perimeter 1 BCLine: Xianghongdian Inflow')
+        self._modify_sa_conn(f, qc_list1, start_date, end_date, 'SA Conn: Foziling Dam (Outlet TS: Foziling Boundar)')
+        # 修改Rating Curve的起始时间
+        self._modify_rating_curves(f, start_date, end_date, '2D: Perimeter 1 BCLine: Hengpaitou Outflow')
+
+        f.close()
+
     def _modify_sa_conn(self, f, qc_list, start_date, end_date, dataset_name):
         """
         修改SA Conn边界条件的函数
@@ -200,6 +214,55 @@ class HDFHandler:
         bc_data = np.column_stack((time_array, bc_data))
 
         # 记录原始属性
+        tfa_data = bc_dataset.attrs['2D Flow Area']
+        bl_data = bc_dataset.attrs['BC Line']
+        cts_data = bc_dataset.attrs['Check TW Stage']
+        dt_data = bc_dataset.attrs['Data Type']
+        esfdf_data = bc_dataset.attrs['EG Slope For Distributing Flow']
+        ed_data = bc_dataset.attrs['End Date']
+        ff_data = bc_dataset.attrs['Face Fraction']
+        fi_data = bc_dataset.attrs['Face Indexes']
+        fpi_data = bc_dataset.attrs['Face Point Indexes']
+        i_data = bc_dataset.attrs['Interval']
+        ni_data = bc_dataset.attrs['Node Index']
+        sd_data = bc_dataset.attrs['Start Date']
+
+        # 删除旧的 dataset
+        del f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs'][dataset_name]
+
+        # 创建新的 dataset
+        new_bc_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs'].create_dataset(
+            dataset_name, data=bc_data)
+
+        # 恢复原来的属性，并修改开始和结束时间
+        # 在新的Dataset中按照记录下来的属性重新新建
+        new_bc_dataset.attrs.create('2D Flow Area', tfa_data, dtype=tfa_data.dtype)
+        new_bc_dataset.attrs.create('BC Line', bl_data, dtype=bl_data.dtype)
+        new_bc_dataset.attrs.create('Check TW Stage', cts_data, dtype=cts_data.dtype)
+        new_bc_dataset.attrs.create('Data Type', dt_data, dtype=dt_data.dtype)
+        new_bc_dataset.attrs.create('EG Slope For Distributing Flow', esfdf_data, dtype=esfdf_data.dtype)
+        new_bc_dataset.attrs.create('Face Fraction', ff_data, dtype=ff_data.dtype)
+        new_bc_dataset.attrs.create('Face Indexes', fi_data, dtype=fi_data.dtype)
+        new_bc_dataset.attrs.create('Face Point Indexes', fpi_data, dtype=fpi_data.dtype)
+        new_bc_dataset.attrs.create('Interval', i_data, dtype=i_data.dtype)
+        new_bc_dataset.attrs.create('Node Index', ni_data, dtype=ni_data.dtype)
+
+        new_bc_dataset.attrs.create('End Date', end_date, dtype=ed_data.dtype)
+        new_bc_dataset.attrs.create('Start Date', start_date, dtype=sd_data.dtype)
+
+    def _modify_bc_safety_discharge(self, f, start_date, end_date, dataset_name):
+        """
+        通用的修改边界条件的函数
+        :param f: h5py 文件对象
+        :param qc_list: 边界条件的流量数据列表
+        :param start_date: 模拟开始时间
+        :param end_date: 模拟结束时间
+        :param dataset_name: hdf5 中的 dataset 路径
+        """
+        bc_dataset = f['Event Conditions']['Unsteady']['Boundary Conditions']['Flow Hydrographs'][dataset_name]
+
+        # 记录原始属性
+        bc_data = bc_dataset[:]
         tfa_data = bc_dataset.attrs['2D Flow Area']
         bl_data = bc_dataset.attrs['BC Line']
         cts_data = bc_dataset.attrs['Check TW Stage']
