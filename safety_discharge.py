@@ -67,13 +67,16 @@ FID_yingjia = [10678, 10660, 10646, 10634, 10635, 10624, 10625, 10626, 10627, 10
 # # 存储各点的安全泄量
 # flood_Q = {name: None for name in FID_name}
 
-for i in range(100, 8000, 300):
+for i in range(100, 9000, 300):
     logger.info(f"开始模拟Q = {i}的工况...")
     print(f"开始模拟Q = {i}的工况...")
-    # 构造72小时恒定流ndarray
-    xq_list = np.ones(72) * i
+    # 构造72小时+12小时恒定流ndarray
+    xq_list = np.ones(84) * i
     xq_list_half = xq_list * 0.5
-    xq_list_xhd = np.zeros(72)
+    xq_list_xhd = np.zeros(84)
+
+    # 佛子岭水库的泄流过程推迟12小时，以确保水库中有足够的水量
+    xq_list[:12] = 0
 
     try:
         logger.info(f"将Q = {i}写入佛子岭水库边界条件中...")
