@@ -13,6 +13,7 @@
 import os
 import csv
 import numpy as np
+import pandas as pd
 from to_csv import insert_time_and_save_to_csv
 from hdf_handler import HDFHandler
 from post_processor import PostProcessor
@@ -33,9 +34,10 @@ logger.addHandler(handler)
 b01_path = os.path.join(RAS_PATH, f"FZLall.b01")
 p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
 output_path = "/home/v01dwm/safety_discharge_results"
+initial_data_path = "data.xlsx"
 
 ymdhm_start = "2025-03-22 08:00"
-ymdhm_end = "2025-03-25 07:00"
+ymdhm_end = "2025-03-25 19:00"
 
 FID_lianghekou = [2183, 2184, 2185, 2186, 2187, 2188, 2189,
                   2252, 2253, 2254, 2255, 2256, 2257, 2258,
@@ -67,32 +69,38 @@ FID_yingjia = [10678, 10660, 10646, 10634, 10635, 10624, 10625, 10626, 10627, 10
 # # 存储各点的安全泄量
 # flood_Q = {name: None for name in FID_name}
 
+initial_data_df = pd.read_excel(initial_data_path, sheet_name="Sheet1", header=None)
+xq_list_initial_bly = initial_data_df[0].values.ravel()
+xq_list_initial_mzt = initial_data_df[1].values.ravel()
+xq_list_xhd = initial_data_df[2].values.ravel()
+
 for i in range(100, 9000, 300):
     logger.info(f"开始模拟Q = {i}的工况...")
     print(f"开始模拟Q = {i}的工况...")
     # 构造72小时+12小时恒定流ndarray
-    xq_list = np.ones(84) * i
-    xq_list_half = xq_list * 0.5
-    xq_list_xhd = np.zeros(84)
+    xq_list_fzl = np.ones(84) * i
+    # 佛子岭水库的泄流过程推迟8小时，以确保水库中有足够的水量
+    xq_list_fzl[:12] = 0
 
-    # 佛子岭水库的泄流过程推迟12小时，以确保水库中有足够的水量
-    xq_list[:12] = 0
+    # 修改白莲崖、磨子潭、响洪甸边界条件
+    xq_list_bly = xq_list_initial_bly + i / 2
+    xq_list_mzt = xq_list_initial_mzt + i / 2
 
     try:
         logger.info(f"将Q = {i}写入佛子岭水库边界条件中...")
         print(f"将Q = {i}写入佛子岭水库边界条件中...")
         # 修改边界条件
-        ras_handler = RASHandler(xq_list)
+        ras_handler = RASHandler(xq_list_fzl)
         time_format_converter = TimeFormatConverter()
         # 修改b01文件
         start_time_b01_and_hdf = time_format_converter.convert(ymdhm_start, 'b01')
         end_time_b01_and_hdf = time_format_converter.convert(ymdhm_end, 'b01')
-        ras_handler.modify_b01(b01_path, b01_path, start_time_b01_and_hdf, end_time_b01_and_hdf, '30SEC', '1HOUR')
+        ras_handler.modify_b01(b01_path, b01_path, start_time_b01_and_hdf, end_time_b01_and_hdf, '1MIN', '1HOUR')
 
         # 修改.p01.hdf文件，修改其中的边界条件并把Results删除后改名为.p01.tmp.hdf
         hdf_handler = HDFHandler(p01_hdf_path, ymdhm_start, ymdhm_end)
         # 修改佛子岭水库出库边界
-        hdf_handler.modify_boundary_conditions_with_xhd_hpt_rating_curve(xq_list_half, xq_list_half, xq_list, xq_list_xhd, start_time_b01_and_hdf, end_time_b01_and_hdf)
+        hdf_handler.modify_boundary_conditions_with_xhd_hpt_rating_curve(xq_list_bly, xq_list_mzt, xq_list_fzl, xq_list_xhd, start_time_b01_and_hdf, end_time_b01_and_hdf)
 
         # 获取符合hdf_handler.modify_plan_data方法要求的start_date和end_date，为该方法的调用做好准备
         start_time_plan_data = time_format_converter.convert(ymdhm_start, 'simulation')
