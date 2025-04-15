@@ -3,4 +3,4 @@ SQLSERVER_PORT = 10281
 SQLSERVER_USER = "wdsfzl"
 SQLSERVER_PASSWORD = "wds#WDS9200"
 SQLSERVER_DATABASE = "wdsfzl"
-RAS_PATH = "/home/v01dwm/Fzlmodel20250410wm2_test"
+RAS_PATH = "/home/v01dwm/safety_discharge"
