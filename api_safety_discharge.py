@@ -99,7 +99,6 @@ def safety_discharge():
 
         try:
             logger.info(f"将Q = {i}写入佛子岭水库边界条件中...")
-            print(f"将Q = {i}写入佛子岭水库边界条件中...")
             # 修改边界条件
             ras_handler = RASHandler(xq_list_fzl)
             time_format_converter = TimeFormatConverter()
@@ -133,7 +132,6 @@ def safety_discharge():
             sh_path = os.path.dirname(b01_path) + os.path.sep + 'run_unsteady.sh'
             return_code = ras_handler.run_model(sh_path)
             logger.info("HEC-RAS计算完成")
-            print("HEC-RAS计算完成")
         except Exception as e:
             logger.error(e)
             return jsonify({"error": "HEC-RAS计算中出现错误"}), 400
