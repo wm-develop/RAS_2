@@ -38,7 +38,7 @@ CORS(app)
 @app.route('/safety_discharge', methods=['post'])
 def safety_discharge():
     try:
-        hours = request.json['FID']
+        hours = request.json['hours']
         # 类型和数值验证
         if isinstance(hours, int):
             pass  # 直接进入范围判断
