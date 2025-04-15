@@ -18,7 +18,7 @@ from time_format_converter import TimeFormatConverter
 from logger import logger
 from datetime import datetime, timedelta
 
-RAS_PATH = "/home/v01dwm/safety_discharge"
+RAS_PATH = "/root/safety_discharge"
 b01_path = os.path.join(RAS_PATH, f"FZLall.b01")
 p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
 initial_data_path = "data.xlsx"
@@ -189,3 +189,8 @@ def safety_discharge():
         logger.info("------------------------")
 
     return jsonify(flood_Q), 200
+
+
+if __name__ == '__main__':
+    # 调试时用这行代码启动服务器
+    app.run(host="0.0.0.0", port=19997, debug=False)
