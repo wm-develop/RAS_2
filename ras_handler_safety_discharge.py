@@ -227,10 +227,6 @@ class RASHandler:
         proc: Popen = Popen(args=["bash", name],
                             stdout=PIPE, stderr=STDOUT, cwd=path)
 
-        # 获取进程输出
-        for line in proc.stdout:
-            logger.info(line.decode().rstrip())
-
         # 等待子进程结束
         return proc.wait()
 
