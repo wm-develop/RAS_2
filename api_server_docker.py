@@ -177,22 +177,26 @@ def set_2d_hydrodynamic_data():
         area_data = reordered_df.to_numpy()
 
         depth_data_transposed = depth_data.T
+        # depth_data_final是一个二维ndarray，行代表网格FID，列代表时间步。第一列内容为每个网格的面积，后面的内容为每个网格在每个时间步的水深值
         depth_data_final = np.hstack((area_data, depth_data_transposed))
+
         # num_shapefiles为计算时间的间隔数
-        num_shapefiles = int(time_format_converter.calculate_intervals(ymdhm_start, ymdhm_end))
-        logger.info(f"num_intervals: {num_shapefiles}, type: {type(num_shapefiles)}")
+        num_shapefiles = len(depth_data)
+        num_ymdhm = int(time_format_converter.calculate_intervals(ymdhm_start, ymdhm_end))
+        logger.info(f"num_intervals: {num_shapefiles}, num_ymdhm: {num_ymdhm}, type: {type(num_shapefiles)}")
         depth_count = np.zeros((len(depth_data_final), num_shapefiles))  # 新建空数组用来计算每个单元的受淹面积
-        for i in range(len(depth_data_final)):
-            for j in range(num_shapefiles):
-                x = depth_data_final[i, j + 1]
-                if x > 0.01:  # 仅当水深>0.01m时才认为是淹没
-                    depth_count[i][j] = depth_data_final[i][0] * 0.001 * 0.001
+        # depth_count的行代表网格FID，列代表时间步
+        for i in range(len(depth_data_final)):  # 遍历每个网格
+            for j in range(num_shapefiles):  # 遍历每个时间步
+                x = depth_data_final[i, j + 1]  # 获取水深值（跳过面积列）
+                if x > 0.2:  # 仅当水深>0.2m时才认为是淹没
+                    depth_count[i][j] = depth_data_final[i][0] * 0.001 * 0.001  # 面积
                 else:
                     depth_count[i][j] = 0
         depth_count_final = depth_count.sum(axis=0)
         # 找到最大值及其索引
         max_index = np.argmax(depth_count_final)
-        attributes_df[f'depth_{max_index}'] = depth_count[:, max_index]
+        attributes_df[f'depth_{max_index}'] = depth_data_final[:, max_index + 1]
 
         # 输出为shp格式并保存
         shp_path = output_path + os.path.sep + "max_water_area.shp"
@@ -200,6 +204,9 @@ def set_2d_hydrodynamic_data():
         logger.info(f"最大淹没面积shp文件已保存到{shp_path}")
     except Exception as e:
         logger.error(e)
+        if "Failed to create Shape DBF file" in str(e):
+            logger.error("无法创建shp文件，请确保shp文件及其相关文件未被其他程序打开")
+            return "Failed: 最大淹没面积shp文件被占用，无法写入"
         return "Failed: 计算最大淹没面积时出现错误"
 
     # ---------------------------
