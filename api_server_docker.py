@@ -20,6 +20,7 @@ from logger import logger
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import threading
 
 
 app = Flask(__name__)
@@ -241,6 +242,12 @@ def set_2d_hydrodynamic_data():
     #     if (i + 1) % 10 == 0:
     #         logger.info(f'第{i + 1}个时间步已处理完成')
 
+    # ...主流程结束，准备异步处理max_water_area.shp
+    threading.Thread(
+        target=postprocess_max_water_area_shp,
+        args=(output_path, logger),
+        daemon=True
+    ).start()
     return "success"
 
 
@@ -251,3 +258,62 @@ if __name__ == '__main__':
     # 以下代码在正式生产环境用
     # server = WSGIServer(app.config["SERVER_NAME"] ,app)
     # server.serve_forever()
+
+
+def postprocess_max_water_area_shp(output_path, logger):
+    try:
+        import geopandas as gpd
+        shp_path = os.path.join(output_path, "max_water_area.shp")
+        geojson_path = os.path.join(output_path, "max_water_area_union.geojson")
+        geojson_path2 = os.path.join(output_path, "max_water_area_union_simplify.geojson")
+
+        logger.info("开始异步处理max_water_area.shp...")
+
+        # 1. 读取shp
+        gdf = gpd.read_file(shp_path)
+        logger.info(f"读取shp成功，面数: {len(gdf)}")
+
+        # 2. 转为EPSG:4326
+        if gdf.crs is None or gdf.crs.to_epsg() != 4326:
+            # 若没有坐标系或不是4326则转换
+            gdf = gdf.to_crs(epsg=4326)
+            logger.info("坐标系已转换为EPSG:4326")
+        else:
+            logger.info("原始shp已为EPSG:4326")
+
+        # 3. 筛选水深>0.2的面
+        # 找到 depth_* 列
+        depth_col = [c for c in gdf.columns if c.startswith('depth_')]
+        assert len(depth_col) == 1, f"未找到唯一的水深列，找到: {depth_col}"
+        depth_col = depth_col[0]
+        gdf_filtered = gdf[gdf[depth_col] > 0.2].copy()
+        logger.info(f"筛选后面数: {len(gdf_filtered)}")
+
+        if gdf_filtered.empty:
+            logger.warning("筛选后无水深大于0.2的面，未生成geojson")
+            return
+
+        # 4. 融合所有面
+        union_geom = gdf_filtered.unary_union
+        # union_geom 可能是 Polygon 或 MultiPolygon
+        out_gdf = gpd.GeoDataFrame(geometry=[union_geom], crs="EPSG:4326")
+
+        # 5. 输出为geojson
+        out_gdf.to_file(geojson_path, driver="GeoJSON")
+        logger.info(f"融合后geojson已输出到 {geojson_path}")
+
+        # ---------关键：边界简化----------
+        # 你可以根据需要调整 tolerance 参数
+        tolerance = 0.001  # 约100米
+        union_geom_simplified = union_geom.simplify(tolerance, preserve_topology=True)
+        logger.info(f"简化后点数：{len(union_geom_simplified.exterior.coords) if union_geom_simplified.geom_type=='Polygon' else 'MultiPolygon'}")
+        out_gdf2 = gpd.GeoDataFrame(geometry=[union_geom_simplified], crs="EPSG:4326")
+        out_gdf2.to_file(geojson_path2, driver="GeoJSON")
+        logger.info(f"融合并简化后geojson已输出到 {geojson_path2}")
+
+    except Exception as e:
+        logger.error(f"max_water_area.shp异步处理失败: {e}")
+
+
+# if __name__ == "__main__":
+#     postprocess_max_water_area_shp(r"D:\Desktop\20250415fzl\1", logger)
