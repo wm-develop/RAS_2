@@ -9,8 +9,7 @@ from flask_cors import CORS
 from to_csv import insert_time_and_save_to_csv
 from hdf_handler import HDFHandler
 from sqlserver_handler import SQLServerHandler
-from sqlserver_handler import NoArraysInDictionaryError
-from sqlserver_handler import ArrayLengthsMismatchError
+from sqlserver_handler import NoArraysInDictionaryError, ArrayLengthsMismatchError, NegativeFlowError, CalInfoDataError
 from post_processor import PostProcessor
 from ras_handler import RASHandler
 from time_format_converter import TimeFormatConverter
@@ -124,6 +123,12 @@ def set_2d_hydrodynamic_data():
     except ArrayLengthsMismatchError as e:
         logger.error(e)
         return "Failed: 数据库中各水库出库流量的时间步数不完全相同"
+    except NegativeFlowError as e:
+        logger.error(e)
+        return "Failed: 水库出库流量序列中存在负值"
+    except CalInfoDataError as e:
+        logger.error(e)
+        return "Failed: 响洪甸水库cal_info数据为空或数量与模拟时长不符"
     except Exception as e:
         logger.error(e)
         return "Failed: 从数据库中读取出库流量失败"
