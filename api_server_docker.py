@@ -8,6 +8,7 @@ from flask_cors import CORS
 
 from to_csv import insert_time_and_save_to_csv
 from hdf_handler import HDFHandler
+from output_hdf_handler import create_output_hdf5
 from sqlserver_handler import SQLServerHandler
 from sqlserver_handler import NoArraysInDictionaryError, ArrayLengthsMismatchError, NegativeFlowError, CalInfoDataError
 from post_processor import PostProcessor
@@ -174,7 +175,7 @@ def set_2d_hydrodynamic_data():
         return "Failed: HEC-RAS计算中出现错误"
 
     try:
-        logger.info("开始将水深数据存储到csv文件中......")
+        logger.info("开始提取水位、水深数据......")
         # 从.p01.hdf结果文件中读取需要的数据
         cells_minimum_elevation_data = hdf_handler.read_dataset(
             'Cells Minimum Elevation')
@@ -196,16 +197,17 @@ def set_2d_hydrodynamic_data():
         # 调用generating_depth方法，用水位减去高程，即得水深值
         depth_data = post_processor.generating_depth(
             cells_minimum_elevation_data, wse_data, real_mesh)
-        logger.info("水深数据提取已完成")
+        logger.info("数据提取已完成")
 
         output_path = "/root/results"
-        csv_path = output_path + os.path.sep + "output.csv"
-        # 将水深计算结果输出为csv文件
-        insert_time_and_save_to_csv(depth_data, csv_path)
-        logger.info(f"水深数据已写入到{csv_path}")
+        
+        # # 保留原CSV输出（暂时不变）
+        # csv_path = output_path + os.path.sep + "output.csv"
+        # insert_time_and_save_to_csv(depth_data, csv_path)
+        # logger.info(f"水深数据已写入到{csv_path}")
     except Exception as e:
         logger.error(e)
-        return "Failed: 水深数据提取和存储过程中出现错误"
+        return "Failed: 数据提取和存储过程中出现错误"
 
     try:
         logger.info("正在提取坝下水位过程...")
@@ -234,7 +236,7 @@ def set_2d_hydrodynamic_data():
     try:
         # 修改为研究区的shp文件
         logger.info("正在计算最大淹没面积...")
-        shp1 = RAS_PATH + os.path.sep + 'demo2' + os.path.sep + 'demo2.shp'
+        shp1 = RAS_PATH + os.path.sep + 'fanwei' + os.path.sep + 'fanwei.shp'
         gdf = gpd.read_file(shp1)
         # 提取属性表并保存为矩阵形式
         attributes_df = gdf
@@ -270,12 +272,41 @@ def set_2d_hydrodynamic_data():
         shp_path = output_path + os.path.sep + "max_water_area.shp"
         gdf.to_file(shp_path)
         logger.info(f"最大淹没面积shp文件已保存到{shp_path}")
+        
+        # 计算每个时刻的淹没面积
+        logger.info("开始计算每个时刻的淹没面积...")
+        # 获取网格面积数据（单位：m²）
+        grid_areas = attributes_df['Area'].values
+        # 初始化淹没面积数组
+        flooded_area = np.zeros(num_shapefiles)
+        
+        # 遍历每个时间步
+        for j in range(num_shapefiles):
+            # 计算该时刻水深>0.2m的所有网格的面积之和
+            total_area = 0.0
+            for i in range(len(depth_data_final)):
+                depth = depth_data_final[i, j + 1]  # 获取水深值（跳过面积列）
+                if depth > 0.2:
+                    total_area += grid_areas[i]  # 累加面积（单位：m²）
+            
+            # 减去42756184m²，转换为km²
+            flooded_area_km2 = (total_area - 42756184.0) / 1000000.0
+            # 如果小于0，设为0
+            flooded_area[j] = max(0.0, flooded_area_km2)
+        
+        logger.info(f"淹没面积计算完成，共{num_shapefiles}个时间步")
+        
+        # 创建HDF5输出文件
+        hdf5_success = create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logger)
+        if not hdf5_success:
+            logger.warning("HDF5输出文件创建失败，但程序继续运行")
+        
     except Exception as e:
         logger.error(e)
         if "Failed to create Shape DBF file" in str(e):
             logger.error("无法创建shp文件，请确保shp文件及其相关文件未被其他程序打开")
-            return "Failed: 最大淹没面积shp文件被占用，无法写入"
-        return "Failed: 计算最大淹没面积时出现错误"
+            # return "Failed: 最大淹没面积shp文件被占用，无法写入"
+        return "Failed: 计算淹没面积时出现错误"
 
     # ---------------------------
     # 下面是对流速的处理
