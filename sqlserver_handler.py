@@ -176,6 +176,192 @@ class SQLServerHandler:
             cursor.close()
             conn.close()
 
+    def insert_flood_rehearsal(self, flood_dispatch_name, flood_path, flood_name, max_flood_area, village_info=None, status=1):
+        """
+        向FLOOD_REHEARSAL表插入一条记录
+        
+        :param flood_dispatch_name: 调度方案名
+        :param flood_path: 文件路径
+        :param flood_name: 洪水名称
+        :param max_flood_area: 最大淹没面积
+        :param village_info: 受影响村庄，如果为None则使用固定值
+        :param status: 状态，默认为1，初始状态为0
+        :return: 插入成功返回True，失败返回False
+        """
+        conn = self._get_connect()
+        cursor = conn.cursor()
+        
+        try:
+            # 如果village_info为None，使用固定值
+            if village_info is None:
+                village_info = "0"
+            
+            # 插入数据（ID字段自动生成，CREATE_TIME和UPDATE_TIME使用默认值）
+            query = '''
+                INSERT INTO FLOOD_REHEARSAL 
+                (FLOOD_DISPATCH_NAME, FLOOD_PATH, FLOOD_NAME, MAX_FLOOD_AREA, VILLAGE_INFO, STATUS)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            '''
+            cursor.execute(query, (flood_dispatch_name, flood_path, flood_name, max_flood_area, village_info, status))
+            conn.commit()
+            logger.info(f"成功插入FLOOD_REHEARSAL记录: {flood_dispatch_name}, STATUS={status}")
+            return True
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"插入FLOOD_REHEARSAL记录失败: {e}")
+            return False
+            
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_flood_rehearsal_status(self, flood_dispatch_name, status, max_flood_area=None):
+        """
+        更新FLOOD_REHEARSAL表中的STATUS和MAX_FLOOD_AREA
+        
+        :param flood_dispatch_name: 调度方案名
+        :param status: 新的状态值
+        :param max_flood_area: 新的最大淹没面积，如果为None则不更新
+        :return: 更新成功返回True，失败返回False
+        """
+        conn = self._get_connect()
+        cursor = conn.cursor()
+        
+        try:
+            if max_flood_area is not None:
+                # 同时更新STATUS和MAX_FLOOD_AREA
+                query = '''
+                    UPDATE FLOOD_REHEARSAL 
+                    SET STATUS = %s, MAX_FLOOD_AREA = %s
+                    WHERE FLOOD_DISPATCH_NAME = %s
+                '''
+                cursor.execute(query, (status, max_flood_area, flood_dispatch_name))
+            else:
+                # 只更新STATUS
+                query = '''
+                    UPDATE FLOOD_REHEARSAL 
+                    SET STATUS = %s
+                    WHERE FLOOD_DISPATCH_NAME = %s
+                '''
+                cursor.execute(query, (status, flood_dispatch_name))
+            
+            conn.commit()
+            logger.info(f"成功更新FLOOD_REHEARSAL状态: {flood_dispatch_name}, STATUS={status}")
+            return True
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"更新FLOOD_REHEARSAL状态失败: {e}")
+            return False
+            
+        finally:
+            cursor.close()
+            conn.close()
+
+    def insert_flood_section_batch(self, records):
+        """
+        批量向FLOOD_SECTION表插入记录
+        
+        :param records: 记录列表，每条记录为元组(section_id, section_name, flood_name, time, z, depth, q)
+        :return: 插入成功返回True，失败返回False
+        """
+        if not records:
+            logger.warning("FLOOD_SECTION批量插入：记录列表为空")
+            return True
+            
+        conn = self._get_connect()
+        cursor = conn.cursor()
+        
+        try:
+            # 批量插入（ID、CREATE_TIME和UPDATE_TIME使用默认值）
+            query = '''
+                INSERT INTO FLOOD_SECTION 
+                (SECTION_ID, SECTION_NAME, FLOOD_NAME, TIME, Z, DEPTH, Q)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            '''
+            cursor.executemany(query, records)
+            conn.commit()
+            logger.info(f"成功批量插入{len(records)}条FLOOD_SECTION记录")
+            return True
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"批量插入FLOOD_SECTION记录失败: {e}")
+            return False
+            
+        finally:
+            cursor.close()
+            conn.close()
+
+    def insert_floodarea_batch(self, records):
+        """
+        批量向FLOODAREA表插入记录
+        
+        :param records: 记录列表，每条记录为元组(time, flooded_area, flood_name)
+        :return: 插入成功返回True，失败返回False
+        """
+        if not records:
+            logger.warning("FLOODAREA批量插入：记录列表为空")
+            return True
+            
+        conn = self._get_connect()
+        cursor = conn.cursor()
+        
+        try:
+            # 批量插入
+            query = '''
+                INSERT INTO FLOODAREA 
+                (TIME, FLOODED_AREA, FLOOD_NAME)
+                VALUES (%s, %s, %s)
+            '''
+            cursor.executemany(query, records)
+            conn.commit()
+            logger.info(f"成功批量插入{len(records)}条FLOODAREA记录")
+            return True
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"批量插入FLOODAREA记录失败: {e}")
+            return False
+            
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_flood_rehearsal_id(self, flood_dispatch_name):
+        """
+        根据FLOOD_DISPATCH_NAME查询FLOOD_REHEARSAL表的ID
+        
+        :param flood_dispatch_name: 调度方案名
+        :return: 查询到的ID，如果未找到返回None
+        """
+        conn = self._get_connect()
+        cursor = conn.cursor()
+        
+        try:
+            query = '''
+                SELECT ID FROM FLOOD_REHEARSAL 
+                WHERE FLOOD_DISPATCH_NAME = %s
+            '''
+            cursor.execute(query, (flood_dispatch_name,))
+            result = cursor.fetchone()
+            
+            if result:
+                logger.info(f"查询到FLOOD_REHEARSAL ID: {result[0]}")
+                return result[0]
+            else:
+                logger.warning(f"未找到FLOOD_DISPATCH_NAME为{flood_dispatch_name}的记录")
+                return None
+                
+        except Exception as e:
+            logger.error(f"查询FLOOD_REHEARSAL ID失败: {e}")
+            return None
+            
+        finally:
+            cursor.close()
+            conn.close()
+
 
 # 下面是用于临时测试的代码
 if __name__ == '__main__':

@@ -1,0 +1,102 @@
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> 开始测试HDF5输出功能
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> HEC-RAS结果文件: D:\Desktop\fzl_history\Fzlmodel20251030test\FZLall.p01.hdf
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> 输出路径: D:\Desktop\fzl_history\test_output
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:41:24 [MainThread] INFO test_hdf5_output -> 开始读取HEC-RAS结果数据...
+2025-11-14 16:41:25 [MainThread] INFO test_hdf5_output -> HEC-RAS结果数据读取完成
+2025-11-14 16:41:25 [MainThread] INFO test_hdf5_output -> 开始处理水深数据...
+2025-11-14 16:41:26 [MainThread] ERROR test_hdf5_output -> 测试过程中出现错误: 'tuple' object has no attribute 'shape'
+2025-11-14 16:41:26 [MainThread] ERROR test_hdf5_output -> Traceback (most recent call last):
+  File "e:\Workspace\PythonPractice\RAS_2\test_hdf5_output.py", line 76, in test_hdf5_output
+    logger.info(f"水深数据提取完成，形状: {depth_data.shape}")
+AttributeError: 'tuple' object has no attribute 'shape'
+
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> 开始测试HDF5输出功能
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> HEC-RAS结果文件: D:\Desktop\fzl_history\Fzlmodel20251030test\FZLall.p01.hdf
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> 输出路径: D:\Desktop\fzl_history\test_output
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> 开始读取HEC-RAS结果数据...
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> HEC-RAS结果数据读取完成
+2025-11-14 16:43:05 [MainThread] INFO test_hdf5_output -> 开始处理水深数据...
+2025-11-14 16:43:06 [MainThread] ERROR test_hdf5_output -> 测试过程中出现错误: 'tuple' object has no attribute 'shape'
+2025-11-14 16:43:06 [MainThread] ERROR test_hdf5_output -> Traceback (most recent call last):
+  File "E:\Workspace\PythonPractice\RAS_2\test_hdf5_output.py", line 76, in test_hdf5_output
+    logger.info(f"水深数据提取完成，形状: {depth_data.shape}")
+AttributeError: 'tuple' object has no attribute 'shape'
+
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> 开始测试HDF5输出功能
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> HEC-RAS结果文件: D:\Desktop\fzl_history\Fzlmodel20251030test\FZLall.p01.hdf
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> 输出路径: D:\Desktop\fzl_history\test_output
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:44:28 [MainThread] INFO test_hdf5_output -> 开始读取HEC-RAS结果数据...
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> HEC-RAS结果数据读取完成
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> 开始处理水深数据...
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> 水深数据提取完成，形状: (427, 35808)
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> 开始提取坝下水位...
+2025-11-14 16:44:29 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\bailianya.csv.
+2025-11-14 16:44:29 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\mozitan.csv.
+2025-11-14 16:44:29 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\foziling.csv.
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> 坝下水位提取完成
+2025-11-14 16:44:29 [MainThread] INFO test_hdf5_output -> 开始计算最大淹没面积和淹没面积...
+2025-11-14 16:44:30 [MainThread] INFO test_hdf5_output -> 时间步数: 427
+2025-11-14 16:44:35 [MainThread] INFO test_hdf5_output -> 最大淹没面积shp文件已保存: D:\Desktop\fzl_history\test_output\max_water_area.shp
+2025-11-14 16:44:35 [MainThread] INFO test_hdf5_output -> 最大淹没发生在第169个时间步
+2025-11-14 16:44:35 [MainThread] INFO test_hdf5_output -> 开始计算每个时刻的淹没面积...
+2025-11-14 16:44:36 [MainThread] INFO test_hdf5_output -> 淹没面积计算完成，共427个时间步
+2025-11-14 16:44:36 [MainThread] INFO test_hdf5_output -> 淹没面积范围: 0.00 - 10.78 km²
+2025-11-14 16:44:36 [MainThread] INFO test_hdf5_output -> 开始创建HDF5输出文件...
+2025-11-14 16:44:36 [MainThread] INFO output_hdf_handler -> 开始创建HDF5输出文件...
+2025-11-14 16:44:36 [MainThread] INFO output_hdf_handler -> CrossSections数据读取成功
+2025-11-14 16:44:36 [MainThread] INFO output_hdf_handler -> TimeDateStamp数据读取并转换成功
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/WaterSurface数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/depth数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/FloodedArea数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> CrossSections/WaterSurface数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> CrossSections/Name数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> CrossSections/Flow数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> TimeDateStamp数据已写入
+2025-11-14 16:44:37 [MainThread] INFO output_hdf_handler -> HDF5输出文件已成功创建: D:\Desktop\fzl_history\test_output\hydroModel.hdf5
+2025-11-14 16:44:37 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:44:37 [MainThread] INFO test_hdf5_output -> 测试成功完成！
+2025-11-14 16:44:37 [MainThread] INFO test_hdf5_output -> HDF5输出文件: D:\Desktop\fzl_history\test_output\hydroModel.hdf5
+2025-11-14 16:44:37 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> 开始测试HDF5输出功能
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> HEC-RAS结果文件: D:\Desktop\fzl_history\Fzlmodel20251030test\FZLall.p01.hdf
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> 输出路径: D:\Desktop\fzl_history\test_output
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> 开始读取HEC-RAS结果数据...
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> HEC-RAS结果数据读取完成
+2025-11-14 16:46:03 [MainThread] INFO test_hdf5_output -> 开始处理水深数据...
+2025-11-14 16:46:04 [MainThread] INFO test_hdf5_output -> 水深数据提取完成，形状: (427, 35808)
+2025-11-14 16:46:04 [MainThread] INFO test_hdf5_output -> 开始提取坝下水位...
+2025-11-14 16:46:04 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\bailianya.csv.
+2025-11-14 16:46:04 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\mozitan.csv.
+2025-11-14 16:46:04 [MainThread] INFO post_processor -> Row means have been saved to D:\Desktop\fzl_history\test_output\foziling.csv.
+2025-11-14 16:46:04 [MainThread] INFO test_hdf5_output -> 坝下水位提取完成
+2025-11-14 16:46:04 [MainThread] INFO test_hdf5_output -> 开始计算最大淹没面积和淹没面积...
+2025-11-14 16:46:04 [MainThread] INFO test_hdf5_output -> 时间步数: 427
+2025-11-14 16:46:09 [MainThread] INFO test_hdf5_output -> 最大淹没面积shp文件已保存: D:\Desktop\fzl_history\test_output\max_water_area.shp
+2025-11-14 16:46:09 [MainThread] INFO test_hdf5_output -> 最大淹没发生在第169个时间步
+2025-11-14 16:46:09 [MainThread] INFO test_hdf5_output -> 开始计算每个时刻的淹没面积...
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> 淹没面积计算完成，共427个时间步
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> 淹没面积范围: 0.00 - 10.78 km²
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> 开始创建HDF5输出文件...
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> 开始创建HDF5输出文件...
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> CrossSections数据读取成功
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> TimeDateStamp数据读取并转换成功
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/WaterSurface数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/depth数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> 2DFlowAreas/FloodedArea数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> CrossSections/WaterSurface数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> CrossSections/Name数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> CrossSections/Flow数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> TimeDateStamp数据已写入
+2025-11-14 16:46:11 [MainThread] INFO output_hdf_handler -> HDF5输出文件已成功创建: D:\Desktop\fzl_history\test_output\hydroModel.hdf5
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> ============================================================
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> 测试成功完成！
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> HDF5输出文件: D:\Desktop\fzl_history\test_output\hydroModel.hdf5
+2025-11-14 16:46:11 [MainThread] INFO test_hdf5_output -> ============================================================

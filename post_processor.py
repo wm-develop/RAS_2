@@ -21,7 +21,7 @@ class PostProcessor:
         for row in new_wse_data:  # 每个row代表一个时间步
             depth_data.append((row - new_dem_data).tolist())
         depth_data_array = np.array(depth_data)
-        return depth_data_array
+        return depth_data_array, new_wse_data
 
     def get_real_mesh(self, dem_data):
         for cells_number, data in enumerate(dem_data):

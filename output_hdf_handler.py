@@ -35,20 +35,25 @@ def convert_time_date_stamp(time_date_stamp_array):
     return np.array(converted_times, dtype='S19')  # S19可以容纳'YYYY-MM-DD HH:MM:SS'格式
 
 
-def create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logger):
+def create_output_hdf5(output_path, hdf_handler, depth_data, wse_data, flooded_area, logger, scheme_name=None):
     """
     创建符合要求的HDF5输出文件
     
     :param output_path: 输出路径
     :param hdf_handler: HDFHandler实例，用于读取HEC-RAS结果
     :param depth_data: 水深数据
+    :param wse_data: 水位数据
     :param flooded_area: 淹没面积数据
     :param logger: 日志记录器
-    :return: 成功返回True，失败返回False
+    :param scheme_name: 方案名称，用于生成文件名。如果为None，使用默认名称hydroModel.hdf5
+    :return: 成功返回HDF5文件路径，失败返回None
     """
     try:
         import os
-        hdf5_output_path = os.path.join(output_path, "hydroModel.hdf5")
+        if scheme_name:
+            hdf5_output_path = os.path.join(output_path, f"{scheme_name}.hdf5")
+        else:
+            hdf5_output_path = os.path.join(output_path, "hydroModel.hdf5")
         
         logger.info("开始创建HDF5输出文件...")
         
@@ -60,7 +65,9 @@ def create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logge
         try:
             cross_sections_ws = ras_result_file['Results']['Unsteady']['Output']['Output Blocks']['Base Output']['Unsteady Time Series']['Reference Lines']['Water Surface'][:]
             cross_sections_name = ras_result_file['Results']['Unsteady']['Output']['Output Blocks']['Base Output']['Unsteady Time Series']['Reference Lines']['Name'][:]
-            cross_sections_flow = ras_result_file['Results']['Unsteady']['Output']['Output Blocks']['Base Output']['Unsteady Time Series']['Reference Lines']['Flow'][:]
+            cross_sections_flow_raw = ras_result_file['Results']['Unsteady']['Output']['Output Blocks']['Base Output']['Unsteady Time Series']['Reference Lines']['Flow'][:]
+            # 对流量取绝对值（HEC-RAS计算策略可能产生负值）
+            cross_sections_flow = np.abs(cross_sections_flow_raw)
             logger.info("CrossSections数据读取成功")
         except Exception as e:
             logger.warning(f"读取CrossSections数据时出现问题: {e}")
@@ -77,13 +84,6 @@ def create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logge
             logger.warning(f"读取TimeDateStamp数据时出现问题: {e}")
             time_date_stamp = None
         
-        # 读取2DFlowAreas-WaterSurface数据
-        try:
-            water_surface_2d = hdf_handler.read_dataset('Water Surface')
-            logger.info("2DFlowAreas WaterSurface数据读取成功")
-        except Exception as e:
-            logger.warning(f"读取2DFlowAreas WaterSurface数据时出现问题: {e}")
-            water_surface_2d = None
         
         # 创建新的HDF5文件
         with h5py.File(hdf5_output_path, 'w') as f:
@@ -92,8 +92,8 @@ def create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logge
             
             # 创建2DFlowAreas组
             flow_areas_group = data_group.create_group('2DFlowAreas')
-            if water_surface_2d is not None:
-                flow_areas_group.create_dataset('WaterSurface', data=water_surface_2d)
+            if wse_data is not None:
+                flow_areas_group.create_dataset('WaterSurface', data=wse_data)
                 logger.info("2DFlowAreas/WaterSurface数据已写入")
             if depth_data is not None:
                 flow_areas_group.create_dataset('depth', data=depth_data)
@@ -122,10 +122,10 @@ def create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logge
         ras_result_file.close()
         
         logger.info(f"HDF5输出文件已成功创建: {hdf5_output_path}")
-        return True
+        return hdf5_output_path
         
     except Exception as e:
         logger.error(f"创建HDF5输出文件时出错: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return False
+        return None

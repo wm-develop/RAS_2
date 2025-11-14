@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 import os
 import shutil
+import zipfile
+import json
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, request, jsonify
@@ -21,6 +23,52 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import threading
+import requests
+
+
+def load_section_mapping():
+    """
+    加载断面ID和名称的映射关系
+    从断面id名称对应关系.xlsx文件中读取映射
+    
+    :return: 字典，key为cross_sections_name（字节串），value为(SECTION_ID, SECTION_NAME)元组
+    """
+    try:
+        import pandas as pd
+        import os
+        
+        # 断面映射文件路径（相对于当前工作目录）
+        mapping_file = os.path.join(os.path.dirname(__file__), "断面id名称对应关系.xlsx")
+        
+        if not os.path.exists(mapping_file):
+            logger.warning(f"断面映射文件不存在: {mapping_file}")
+            return {}
+        
+        # 读取Excel文件
+        df = pd.read_excel(mapping_file, sheet_name='FLOODAREA')
+        
+        # 建立映射字典
+        section_map = {}
+        for _, row in df.iterrows():
+            cross_sections_id = row['cross_sections_id']
+            # 跳过cross_sections_id为"无"的记录
+            if pd.isna(cross_sections_id) or str(cross_sections_id).strip() == "无":
+                continue
+            
+            cross_sections_name = row['cross_sections_name']
+            section_id = int(row['SECTION_ID'])
+            section_name = str(row['SECTION_NAME'])
+            
+            # 将cross_sections_name转为字节串作为key（与HDF5中的格式一致）
+            key = cross_sections_name.encode('utf-8') if isinstance(cross_sections_name, str) else cross_sections_name
+            section_map[key] = (section_id, section_name)
+        
+        logger.info(f"成功加载{len(section_map)}个断面映射")
+        return section_map
+        
+    except Exception as e:
+        logger.error(f"加载断面映射失败: {e}")
+        return {}
 
 
 def postprocess_max_water_area_shp(output_path, logger):
@@ -99,10 +147,28 @@ def set_2d_hydrodynamic_data():
         p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
         sqlserver_handler = SQLServerHandler(SQLSERVER_HOST, SQLSERVER_PORT, SQLSERVER_USER, SQLSERVER_PASSWORD,
                                              SQLSERVER_DATABASE)
+        output_path = OUTPUT_PATH
         logger.info("json信息解析完成")
     except Exception as e:
         logger.error(e)
         return "Failed: json信息解析失败"
+    
+    # 向FLOOD_REHEARSAL表中写入初始状态
+    try:
+        logger.info("开始写入FLOOD_REHEARSAL初始状态...")
+        success = sqlserver_handler.insert_flood_rehearsal(
+            flood_dispatch_name=scheme_name,
+            flood_path=output_path,
+            flood_name=scheme_name,
+            max_flood_area=0,
+            village_info="0",
+            status=0
+        )
+        if not success:
+            logger.warning("FLOOD_REHEARSAL初始状态写入失败，但程序继续运行")
+    except Exception as e:
+        logger.error(f"写入FLOOD_REHEARSAL初始状态时出错: {e}")
+        # 初始状态写入失败不影响主流程
 
     try:
         ymdhm_start, ymdhm_end = sqlserver_handler.get_start_end_time(scheme_name)
@@ -195,11 +261,9 @@ def set_2d_hydrodynamic_data():
         # 将Cells中多余的高程为nan的空网格删去
         real_mesh = post_processor.get_real_mesh(cells_minimum_elevation_data)
         # 调用generating_depth方法，用水位减去高程，即得水深值
-        depth_data = post_processor.generating_depth(
+        depth_data, new_wse_data = post_processor.generating_depth(
             cells_minimum_elevation_data, wse_data, real_mesh)
         logger.info("数据提取已完成")
-
-        output_path = "/root/results"
         
         # # 保留原CSV输出（暂时不变）
         # csv_path = output_path + os.path.sep + "output.csv"
@@ -296,16 +360,134 @@ def set_2d_hydrodynamic_data():
         
         logger.info(f"淹没面积计算完成，共{num_shapefiles}个时间步")
         
-        # 创建HDF5输出文件
-        hdf5_success = create_output_hdf5(output_path, hdf_handler, depth_data, flooded_area, logger)
-        if not hdf5_success:
-            logger.warning("HDF5输出文件创建失败，但程序继续运行")
+        # 创建HDF5输出文件（使用scheme_name命名）
+        hdf5_file_path = create_output_hdf5(output_path, hdf_handler, depth_data, new_wse_data, flooded_area, logger, scheme_name)
+        if not hdf5_file_path:
+            return "Failed: HDF5输出文件创建失败"
+        
+        # 压缩HDF5文件为ZIP
+        try:
+            logger.info("开始压缩HDF5文件为ZIP...")
+            zip_file_path = os.path.join(output_path, f"{scheme_name}.zip")
+            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                zipf.write(hdf5_file_path, os.path.basename(hdf5_file_path))
+            logger.info(f"ZIP文件已创建: {zip_file_path}")
+        except Exception as e:
+            logger.error(f"创建ZIP文件失败: {e}")
+            return "Failed: 创建ZIP文件失败"
+        
+        # 写入数据库
+        try:
+            logger.info("开始写入数据库...")
+            
+            # 1. 更新FLOOD_REHEARSAL记录的STATUS为1和MAX_FLOOD_AREA
+            max_flood_area = int(np.max(flooded_area))
+            success = sqlserver_handler.update_flood_rehearsal_status(
+                flood_dispatch_name=scheme_name,
+                status=1,
+                max_flood_area=max_flood_area
+            )
+            if not success:
+                logger.warning("FLOOD_REHEARSAL状态更新失败")
+            
+            # 2. 准备并插入FLOOD_SECTION记录
+            # 加载断面映射
+            section_mapping = load_section_mapping()
+            
+            # 从HDF5读取断面数据
+            import h5py
+            with h5py.File(hdf5_file_path, 'r') as hf:
+                cross_sections_ws = hf['data']['CrossSections']['WaterSurface'][:]
+                cross_sections_name = hf['data']['CrossSections']['Name'][:]
+                cross_sections_flow = hf['data']['CrossSections']['Flow'][:]
+                time_date_stamp = hf['data']['TimeDateStamp'][:]
+            
+            # 准备FLOOD_SECTION批量插入数据
+            section_records = []
+            for i, cs_name in enumerate(cross_sections_name):
+                # 查找映射
+                if cs_name in section_mapping:
+                    section_id, section_name = section_mapping[cs_name]
+                    
+                    # 为每个时间步创建一条记录
+                    for j in range(len(time_date_stamp)):
+                        time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
+                        z_value = float(cross_sections_ws[i, j])
+                        q_value = float(cross_sections_flow[i, j])
+                        depth_value = 0  # DEPTH字段暂填0
+                        
+                        section_records.append((
+                            section_id,
+                            section_name,
+                            scheme_name,
+                            time_str,
+                            z_value,
+                            depth_value,
+                            q_value
+                        ))
+            
+            if section_records:
+                success = sqlserver_handler.insert_flood_section_batch(section_records)
+                if not success:
+                    logger.warning("FLOOD_SECTION批量写入失败")
+            
+            # 3. 准备并插入FLOODAREA记录
+            floodarea_records = []
+            for j in range(len(time_date_stamp)):
+                time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
+                flooded_area_value = float(flooded_area[j])
+                
+                floodarea_records.append((
+                    time_str,
+                    flooded_area_value,
+                    scheme_name
+                ))
+            
+            if floodarea_records:
+                success = sqlserver_handler.insert_floodarea_batch(floodarea_records)
+                if not success:
+                    logger.warning("FLOODAREA批量写入失败")
+            
+            logger.info("数据库写入完成")
+            
+        except Exception as e:
+            logger.error(f"写入数据库时出错: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 数据库写入失败不影响主流程
+        
+        # 调用POST接口
+        try:
+            logger.info("开始调用POST接口...")
+            
+            # 查询FLOOD_REHEARSAL ID
+            rehearsal_id = sqlserver_handler.get_flood_rehearsal_id(scheme_name)
+            
+            if rehearsal_id:
+                # 调用POST接口
+                post_url = PARSE_HOST
+                post_data = {
+                    "file": f"{scheme_name}.zip",
+                    "id": rehearsal_id
+                }
+                
+                response = requests.post(post_url, json=post_data, timeout=30)
+                
+                if response.status_code == 200:
+                    logger.info(f"POST接口调用成功: {response.text}")
+                else:
+                    logger.warning(f"POST接口返回非200状态码: {response.status_code}, {response.text}")
+            else:
+                logger.warning("未能查询到FLOOD_REHEARSAL ID，跳过POST接口调用")
+                
+        except Exception as e:
+            logger.error(f"调用POST接口时出错: {e}")
+            # POST失败不影响主流程
         
     except Exception as e:
         logger.error(e)
         if "Failed to create Shape DBF file" in str(e):
             logger.error("无法创建shp文件，请确保shp文件及其相关文件未被其他程序打开")
-            # return "Failed: 最大淹没面积shp文件被占用，无法写入"
         return "Failed: 计算淹没面积时出现错误"
 
     # ---------------------------
