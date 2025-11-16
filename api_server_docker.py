@@ -147,7 +147,11 @@ def set_2d_hydrodynamic_data():
         p01_hdf_path = os.path.join(RAS_PATH, f"FZLall.p01.hdf")
         sqlserver_handler = SQLServerHandler(SQLSERVER_HOST, SQLSERVER_PORT, SQLSERVER_USER, SQLSERVER_PASSWORD,
                                              SQLSERVER_DATABASE)
-        output_path = OUTPUT_PATH
+        output_path = os.path.join("/root/results", scheme_name)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        logger.info("结果输出目录已创建")
+        outside_path = os.path.join(OUTPUT_PATH, scheme_name)
         logger.info("json信息解析完成")
     except Exception as e:
         logger.error(e)
@@ -158,7 +162,7 @@ def set_2d_hydrodynamic_data():
         logger.info("开始写入FLOOD_REHEARSAL初始状态...")
         success = sqlserver_handler.insert_flood_rehearsal(
             flood_dispatch_name=scheme_name,
-            flood_path=output_path,
+            flood_path=outside_path,
             flood_name=scheme_name,
             max_flood_area=0,
             village_info="0",
@@ -167,8 +171,8 @@ def set_2d_hydrodynamic_data():
         if not success:
             logger.warning("FLOOD_REHEARSAL初始状态写入失败，但程序继续运行")
     except Exception as e:
-        logger.error(f"写入FLOOD_REHEARSAL初始状态时出错: {e}")
-        # 初始状态写入失败不影响主流程
+        logger.error(f"向FLOOD_REHEARSAL写入初始状态时出错: {e}")
+        return "Failed：向FLOOD_REHEARSAL写入初始状态时出错"
 
     try:
         ymdhm_start, ymdhm_end = sqlserver_handler.get_start_end_time(scheme_name)
