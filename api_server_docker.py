@@ -460,15 +460,12 @@ def set_2d_hydrodynamic_data():
         try:
             logger.info("开始调用POST接口...")
             
-            # 查询FLOOD_REHEARSAL ID
-            rehearsal_id = sqlserver_handler.get_flood_rehearsal_id(scheme_name)
-            
-            if rehearsal_id:
+            if scheme_name:
                 # 调用POST接口
                 post_url = PARSE_HOST
                 post_data = {
                     "file": f"{scheme_name}.zip",
-                    "id": rehearsal_id
+                    "id": scheme_name
                 }
                 
                 response = requests.post(post_url, json=post_data, timeout=30)
