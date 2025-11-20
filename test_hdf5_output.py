@@ -63,8 +63,8 @@ def test_hdf5_output():
         wse_data = hdf_handler.read_dataset('Water Surface')
         logger.info("HEC-RAS结果数据读取完成")
         
-        # ========== 处理水深数据 ==========
-        logger.info("开始处理水深数据...")
+        # ========== 处理水深和水位数据 ==========
+        logger.info("开始处理水深和水位数据...")
         post_processor = PostProcessor()
         
         # 将Cells中多余的高程为nan的空网格删去
@@ -73,7 +73,7 @@ def test_hdf5_output():
         # 调用generating_depth方法，用水位减去高程，即得水深值
         depth_data, new_wse_data = post_processor.generating_depth(
             cells_minimum_elevation_data, wse_data, real_mesh)
-        logger.info(f"水深数据提取完成，形状: {depth_data.shape}")
+        logger.info(f"水深和水位数据提取完成，形状: {depth_data.shape}")
         
         # # ========== 保存CSV（可选）==========
         # logger.info("开始保存CSV文件...")

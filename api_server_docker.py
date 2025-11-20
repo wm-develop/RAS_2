@@ -26,6 +26,20 @@ import threading
 import requests
 
 
+class NoReferenceShapefileError(Exception):
+    def __init__(self, message="参考shp网格文件不存在"):
+        self.message = message
+        super().__init__(self.message)
+
+
+
+class NoAreaInShapefileError(Exception):
+    def __init__(self, message="参考shp网格文件中没有'Area'列"):
+        self.message = message
+        super().__init__(self.message)
+
+
+
 def load_section_mapping():
     """
     加载断面ID和名称的映射关系
@@ -267,7 +281,7 @@ def set_2d_hydrodynamic_data():
         # 调用generating_depth方法，用水位减去高程，即得水深值
         depth_data, new_wse_data = post_processor.generating_depth(
             cells_minimum_elevation_data, wse_data, real_mesh)
-        logger.info("数据提取已完成")
+        logger.info(f"水深和水位数据提取完成，形状: {depth_data.shape}")
         
         # # 保留原CSV输出（暂时不变）
         # csv_path = output_path + os.path.sep + "output.csv"
@@ -275,146 +289,170 @@ def set_2d_hydrodynamic_data():
         # logger.info(f"水深数据已写入到{csv_path}")
     except Exception as e:
         logger.error(e)
-        return "Failed: 数据提取和存储过程中出现错误"
+        return "Failed: 水深和水位数据提取和存储过程中出现错误"
 
     try:
-        logger.info("正在提取坝下水位过程...")
-        bailianya_dam_depth_path = output_path + os.path.sep + "bailianya.csv"
-        mozitan_dam_depth_path = output_path + os.path.sep + "mozitan.csv"
-        foziling_dam_depth_path = output_path + os.path.sep + "foziling.csv"
+        # ========== 提取坝下水位 ==========
+        logger.info("开始提取坝下水位...")
         bailianya_grids = [25495, 25494, 25496, 25492]
         mozitan_grids = [24834, 24833, 24835, 24832]
         foziling_grids = [24418, 24417, 17369, 17367]
+        
         water_level_array = post_processor.get_water_level(wse_data, real_mesh)
-        bailianya_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array,
-                                                                                 bailianya_dam_depth_path,
-                                                                                 bailianya_grids)
-        mozitan_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array,
-                                                                               mozitan_dam_depth_path, mozitan_grids)
-        foziling_dam_depth_result = post_processor.calculate_and_save_row_means(water_level_array,
-                                                                                foziling_dam_depth_path, foziling_grids)
-        if bailianya_dam_depth_result == 1 or mozitan_dam_depth_result == 1 or foziling_dam_depth_result == 1:
-            raise RuntimeError("Failed: 提取坝下水位过程中出现错误")
-        logger.info("坝下水位过程提取成功")
+        
+        bailianya_dam_depth_path = os.path.join(output_path, "bailianya.csv")
+        mozitan_dam_depth_path = os.path.join(output_path, "mozitan.csv")
+        foziling_dam_depth_path = os.path.join(output_path, "foziling.csv")
+        
+        post_processor.calculate_and_save_row_means(
+            water_level_array, bailianya_dam_depth_path, bailianya_grids)
+        post_processor.calculate_and_save_row_means(
+            water_level_array, mozitan_dam_depth_path, mozitan_grids)
+        post_processor.calculate_and_save_row_means(
+            water_level_array, foziling_dam_depth_path, foziling_grids)
+        logger.info("坝下水位提取完成")
     except Exception as e:
         logger.error(e)
         return f"Failed: {e}"
 
-    # 下面是算最大淹没面积的发生时刻
+    # ========== 计算最大淹没面积和每个时刻的淹没面积 ==========
     try:
-        # 修改为研究区的shp文件
-        logger.info("正在计算最大淹没面积...")
-        shp1 = RAS_PATH + os.path.sep + 'fanwei' + os.path.sep + 'fanwei.shp'
-        gdf = gpd.read_file(shp1)
-        # 提取属性表并保存为矩阵形式
-        attributes_df = gdf
-        # 重新排列列顺序
-        columns = attributes_df.columns.tolist()
-        new_order = [columns[3]]
-        reordered_df = attributes_df[new_order]
-        area_data = reordered_df.to_numpy()
+        flooded_area = None  # 初始化
 
-        depth_data_transposed = depth_data.T
-        # depth_data_final是一个二维ndarray，行代表网格FID，列代表时间步。第一列内容为每个网格的面积，后面的内容为每个网格在每个时间步的水深值
-        depth_data_final = np.hstack((area_data, depth_data_transposed))
-
-        # num_shapefiles为计算时间的间隔数
-        num_shapefiles = len(depth_data)
-        num_ymdhm = int(time_format_converter.calculate_intervals(ymdhm_start, ymdhm_end))
-        logger.info(f"num_intervals: {num_shapefiles}, num_ymdhm: {num_ymdhm}, type: {type(num_shapefiles)}")
-        depth_count = np.zeros((len(depth_data_final), num_shapefiles))  # 新建空数组用来计算每个单元的受淹面积
-        # depth_count的行代表网格FID，列代表时间步
-        for i in range(len(depth_data_final)):  # 遍历每个网格
-            for j in range(num_shapefiles):  # 遍历每个时间步
-                x = depth_data_final[i, j + 1]  # 获取水深值（跳过面积列）
-                if x > 0.2:  # 仅当水深>0.2m时才认为是淹没
-                    depth_count[i][j] = depth_data_final[i][0] * 0.001 * 0.001  # 面积
-                else:
-                    depth_count[i][j] = 0
-        depth_count_final = depth_count.sum(axis=0)
-        # 找到最大值及其索引
-        max_index = np.argmax(depth_count_final)
-        attributes_df[f'depth_{max_index}'] = depth_data_final[:, max_index + 1]
-
-        # 输出为shp格式并保存
-        shp_path = output_path + os.path.sep + "max_water_area.shp"
-        gdf.to_file(shp_path)
-        logger.info(f"最大淹没面积shp文件已保存到{shp_path}")
+        shp_path = RAS_PATH + os.path.sep + 'fanwei' + os.path.sep + 'fanwei.shp'
         
-        # 计算每个时刻的淹没面积
-        logger.info("开始计算每个时刻的淹没面积...")
-        # 获取网格面积数据（单位：m²）
-        grid_areas = attributes_df['Area'].values
-        # 初始化淹没面积数组
-        flooded_area = np.zeros(num_shapefiles)
+        if not os.path.exists(shp_path):
+            logger.error(f"参考shp网格不存在: {shp_path}")
+            shp_exists = False
+            raise NoReferenceShapefileError(f"参考shp网格不存在: {shp_path}")
+        else:
+            shp_exists = True
         
-        # 遍历每个时间步
-        for j in range(num_shapefiles):
-            # 计算该时刻水深>0.2m的所有网格的面积之和
-            total_area = 0.0
-            for i in range(len(depth_data_final)):
-                depth = depth_data_final[i, j + 1]  # 获取水深值（跳过面积列）
-                if depth > 0.2:
-                    total_area += grid_areas[i]  # 累加面积（单位：m²）
+        if shp_exists:
+            logger.info("开始计算最大淹没面积和淹没面积...")
             
-            # 减去42756184m²，转换为km²
-            flooded_area_km2 = (total_area - 42756184.0) / 1000000.0
-            # 如果小于0，设为0
-            flooded_area[j] = max(0.0, flooded_area_km2)
+            # 读取shapefile
+            gdf = gpd.read_file(shp_path)
+            attributes_df = gdf
+            
+            # 提取面积数据 - 直接读取Area列
+            if 'Area' not in attributes_df.columns:
+                logger.error("Shapefile中未找到'Area'列！")
+                logger.info(f"可用的列: {attributes_df.columns.tolist()}")
+                raise NoAreaInShapefileError("参考Shp网格文件中未找到'Area'列！")
+            
+            area_data = attributes_df[['Area']].to_numpy()
+            
+            depth_data_transposed = depth_data.T
+            # depth_data_final: 行=网格FID，列=时间步
+            # 第一列为面积，后续列为各时间步的水深
+            depth_data_final = np.hstack((area_data, depth_data_transposed))
+            
+            num_shapefiles = len(depth_data)
+            logger.info(f"时间步数: {num_shapefiles}")
+            
+            # 计算每个网格在每个时间步的受淹面积
+            depth_count = np.zeros((len(depth_data_final), num_shapefiles))
+            for i in range(len(depth_data_final)):
+                for j in range(num_shapefiles):
+                    x = depth_data_final[i, j + 1]  # 获取水深值
+                    if x > 0.2:  # 水深>0.2m
+                        depth_count[i][j] = depth_data_final[i][0] * 0.001 * 0.001  # 转换为km²
+                    else:
+                        depth_count[i][j] = 0
+            
+            depth_count_final = depth_count.sum(axis=0)
+            max_index = np.argmax(depth_count_final)
+            
+            # 添加最大淹没时刻的水深到shapefile
+            attributes_df[f'depth_{max_index}'] = depth_data_final[:, max_index + 1]
+            
+            # 保存最大淹没面积shapefile
+            max_shp_path = os.path.join(output_path, "max_water_area.shp")
+            gdf.to_file(max_shp_path)
+            logger.info(f"最大淹没面积shp文件已保存: {max_shp_path}")
+            logger.info(f"最大淹没发生在第{max_index}个时间步")
+            
+            # ========== 计算每个时刻的淹没面积 ==========
+            logger.info("开始计算每个时刻的淹没面积...")
+            grid_areas = attributes_df['Area'].values
+            flooded_area = np.zeros(num_shapefiles)
+            
+            for j in range(num_shapefiles):
+                total_area = 0.0
+                for i in range(len(depth_data_final)):
+                    depth = depth_data_final[i, j + 1]
+                    if depth > 0.2:
+                        total_area += grid_areas[i]  # 累加面积(m²)
+                
+                # 减去42756184m²，转换为km²
+                flooded_area_km2 = (total_area - 42756184.0) / 1000000.0
+                flooded_area[j] = max(0.0, flooded_area_km2)
+            
+            logger.info(f"淹没面积计算完成，共{num_shapefiles}个时间步")
+            logger.info(f"淹没面积范围: {flooded_area.min():.2f} - {flooded_area.max():.2f} km²")
+
+    except NoReferenceShapefileError as e:
+        return "Failed: 参考shp网格文件不存在"
+    except NoAreaInShapefileError as e:
+        return "Failed: 参考shp网格文件中没有'Area'列"
         
-        logger.info(f"淹没面积计算完成，共{num_shapefiles}个时间步")
-        
-        # 创建HDF5输出文件（使用scheme_name命名）
+    # 创建HDF5输出文件（使用scheme_name命名）并压缩HDF5文件为ZIP
+    try:
         hdf5_file_path = create_output_hdf5(output_path, hdf_handler, depth_data, new_wse_data, flooded_area, logger, scheme_name)
         if not hdf5_file_path:
             return "Failed: HDF5输出文件创建失败"
+    
+    # 压缩HDF5文件为ZIP
+    
+        logger.info("开始压缩HDF5文件为ZIP...")
+        zip_file_path = os.path.join(output_path, f"{scheme_name}.zip")
+        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(hdf5_file_path, os.path.basename(hdf5_file_path))
+        logger.info(f"ZIP文件已创建: {zip_file_path}")
+    except Exception as e:
+        logger.error(f"创建ZIP文件失败: {e}")
+        return "Failed: 创建ZIP文件失败"
+    
+    # 写入数据库
+    try:
+        logger.info("开始写入数据库...")
         
-        # 压缩HDF5文件为ZIP
-        try:
-            logger.info("开始压缩HDF5文件为ZIP...")
-            zip_file_path = os.path.join(output_path, f"{scheme_name}.zip")
-            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                zipf.write(hdf5_file_path, os.path.basename(hdf5_file_path))
-            logger.info(f"ZIP文件已创建: {zip_file_path}")
-        except Exception as e:
-            logger.error(f"创建ZIP文件失败: {e}")
-            return "Failed: 创建ZIP文件失败"
+        # 1. 更新FLOOD_REHEARSAL记录的STATUS为1和MAX_FLOOD_AREA
+        max_flood_area = int(np.max(flooded_area))
+        success = sqlserver_handler.update_flood_rehearsal_status(
+            flood_dispatch_name=scheme_name,
+            status=1,
+            max_flood_area=max_flood_area
+        )
+        if not success:
+            logger.warning("FLOOD_REHEARSAL状态更新失败")
         
-        # 写入数据库
-        try:
-            logger.info("开始写入数据库...")
-            
-            # 1. 更新FLOOD_REHEARSAL记录的STATUS为1和MAX_FLOOD_AREA
-            max_flood_area = int(np.max(flooded_area))
-            success = sqlserver_handler.update_flood_rehearsal_status(
-                flood_dispatch_name=scheme_name,
-                status=1,
-                max_flood_area=max_flood_area
-            )
-            if not success:
-                logger.warning("FLOOD_REHEARSAL状态更新失败")
-            
-            # 2. 准备并插入FLOOD_SECTION记录
-            # 加载断面映射
-            section_mapping = load_section_mapping()
-            
-            # 从HDF5读取断面数据
-            import h5py
-            with h5py.File(hdf5_file_path, 'r') as hf:
-                cross_sections_ws = hf['data']['CrossSections']['WaterSurface'][:]
-                cross_sections_name = hf['data']['CrossSections']['Name'][:]
-                cross_sections_flow = hf['data']['CrossSections']['Flow'][:]
-                time_date_stamp = hf['data']['TimeDateStamp'][:]
-            
+        # 2. 准备并插入FLOOD_SECTION记录
+        # 加载断面映射
+        section_mapping = load_section_mapping()
+        
+        # 从HDF5读取断面数据
+        import h5py
+        with h5py.File(hdf5_file_path, 'r') as hf:
+            cross_sections_ws = hf['data']['CrossSections']['WaterSurface'][:]
+            cross_sections_name = hf['data']['CrossSections']['Name'][:]
+            cross_sections_flow = hf['data']['CrossSections']['Flow'][:]
+            time_date_stamp = hf['data']['TimeDateStamp'][:]
+        
             # 准备FLOOD_SECTION批量插入数据
             section_records = []
+            
+            # 获取断面数据的时间步数（使用cross_sections_ws的实际列数）
+            num_cross_section_timesteps = cross_sections_ws.shape[1] if len(cross_sections_ws.shape) > 1 else len(time_date_stamp)
+            
             for i, cs_name in enumerate(cross_sections_name):
                 # 查找映射
                 if cs_name in section_mapping:
                     section_id, section_name = section_mapping[cs_name]
                     
-                    # 为每个时间步创建一条记录
-                    for j in range(len(time_date_stamp)):
+                    # 为每个时间步创建一条记录（使用断面数据实际的时间步数）
+                    for j in range(num_cross_section_timesteps):
                         time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
                         z_value = float(cross_sections_ws[i, j])
                         q_value = float(cross_sections_flow[i, j])
@@ -429,67 +467,67 @@ def set_2d_hydrodynamic_data():
                             depth_value,
                             q_value
                         ))
-            
-            if section_records:
-                success = sqlserver_handler.insert_flood_section_batch(section_records)
-                if not success:
-                    logger.warning("FLOOD_SECTION批量写入失败")
-            
-            # 3. 准备并插入FLOODAREA记录
-            floodarea_records = []
-            for j in range(len(time_date_stamp)):
-                time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
-                flooded_area_value = float(flooded_area[j])
-                
-                floodarea_records.append((
-                    time_str,
-                    flooded_area_value,
-                    scheme_name
-                ))
-            
-            if floodarea_records:
-                success = sqlserver_handler.insert_floodarea_batch(floodarea_records)
-                if not success:
-                    logger.warning("FLOODAREA批量写入失败")
-            
-            logger.info("数据库写入完成")
-            
-        except Exception as e:
-            logger.error(f"写入数据库时出错: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            # 数据库写入失败不影响主流程
         
-        # 调用POST接口
-        try:
-            logger.info("开始调用POST接口...")
+        if section_records:
+            success = sqlserver_handler.insert_flood_section_batch(section_records)
+            if not success:
+                logger.warning("FLOOD_SECTION批量写入失败")
+        
+        # 3. 准备并插入FLOODAREA记录
+        floodarea_records = []
+        for j in range(len(time_date_stamp)):
+            time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
+            flooded_area_value = float(flooded_area[j])
             
-            if scheme_name:
-                # 调用POST接口
-                post_url = PARSE_HOST
-                post_data = {
-                    "file": f"{scheme_name}.zip",
-                    "id": scheme_name
-                }
-                
-                response = requests.post(post_url, json=post_data, timeout=30)
-                
-                if response.status_code == 200:
-                    logger.info(f"POST接口调用成功: {response.text}")
-                else:
-                    logger.warning(f"POST接口返回非200状态码: {response.status_code}, {response.text}")
-            else:
-                logger.warning("未能查询到FLOOD_REHEARSAL ID，跳过POST接口调用")
-                
-        except Exception as e:
-            logger.error(f"调用POST接口时出错: {e}")
-            # POST失败不影响主流程
+            floodarea_records.append((
+                time_str,
+                flooded_area_value,
+                scheme_name
+            ))
+        
+        if floodarea_records:
+            success = sqlserver_handler.insert_floodarea_batch(floodarea_records)
+            if not success:
+                logger.warning("FLOODAREA批量写入失败")
+        
+        logger.info("数据库写入完成")
         
     except Exception as e:
-        logger.error(e)
-        if "Failed to create Shape DBF file" in str(e):
-            logger.error("无法创建shp文件，请确保shp文件及其相关文件未被其他程序打开")
-        return "Failed: 计算淹没面积时出现错误"
+        logger.error(f"写入数据库时出错: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # 数据库写入失败不影响主流程
+    
+    # 调用POST接口
+    try:
+        logger.info("开始调用POST接口...")
+        
+        if scheme_name:
+            # 调用POST接口，上传ZIP文件
+            post_url = PARSE_HOST
+            zip_file_path = os.path.join(output_path, f"{scheme_name}.zip")
+            
+            # 检查ZIP文件是否存在
+            if not os.path.exists(zip_file_path):
+                logger.warning(f"ZIP文件不存在: {zip_file_path}，跳过POST接口调用")
+            else:
+                # 以multipart/form-data格式上传文件
+                with open(zip_file_path, 'rb') as f:
+                    files = {'file': (f"{scheme_name}.zip", f, 'application/zip')}
+                    data = {'id': scheme_name}
+                    
+                    response = requests.post(post_url, files=files, data=data, timeout=30)
+                    
+                    if response.status_code == 200:
+                        logger.info(f"POST接口调用成功: {response.text}")
+                    else:
+                        logger.warning(f"POST接口返回非200状态码: {response.status_code}, {response.text}")
+        else:
+            logger.warning("scheme_name为空，跳过POST接口调用")
+            
+    except Exception as e:
+        logger.error(f"调用POST接口时出错: {e}")
+        # POST失败不影响主流程
 
     # ---------------------------
     # 下面是对流速的处理
