@@ -190,6 +190,8 @@ def set_2d_hydrodynamic_data():
 
     try:
         ymdhm_start, ymdhm_end = sqlserver_handler.get_start_end_time(scheme_name)
+        logger.info(f"模拟开始时间：{ymdhm_start}")
+        logger.info(f"模拟结束时间：{ymdhm_end}")
     except Exception as e:
         logger.error(e)
         return "Failed：从数据库中获取模拟时段失败"
@@ -202,6 +204,10 @@ def set_2d_hydrodynamic_data():
         xq_list2 = xq_list[:, 0]
         xq_list3 = xq_list[:, 2]
         xq_list4 = xq_list[:, 3]
+        logger.info(f"白莲崖出流过程：{xq_list1}")
+        logger.info(f"磨子潭出流过程：{xq_list2}")
+        logger.info(f"佛子岭出流过程：{xq_list3}")
+        logger.info(f"响洪甸出流过程：{xq_list4}")
     except NoArraysInDictionaryError as e:
         logger.error(e)
         return "Failed: 无法查询到任何水库的出库流量过程"
@@ -444,7 +450,7 @@ def set_2d_hydrodynamic_data():
             section_records = []
             
             # 获取断面数据的时间步数（使用cross_sections_ws的实际列数）
-            num_cross_section_timesteps = cross_sections_ws.shape[1] if len(cross_sections_ws.shape) > 1 else len(time_date_stamp)
+            num_cross_section_timesteps = cross_sections_ws.shape[0] if len(cross_sections_ws.shape) > 1 else len(time_date_stamp)
             
             for i, cs_name in enumerate(cross_sections_name):
                 # 查找映射
@@ -452,10 +458,11 @@ def set_2d_hydrodynamic_data():
                     section_id, section_name = section_mapping[cs_name]
                     
                     # 为每个时间步创建一条记录（使用断面数据实际的时间步数）
+                    # cross_sections_ws结构：行=时间步，列=断面ID
                     for j in range(num_cross_section_timesteps):
                         time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
-                        z_value = float(cross_sections_ws[i, j])
-                        q_value = float(cross_sections_flow[i, j])
+                        z_value = float(cross_sections_ws[j, i])  # j=时间步（行），i=断面（列）
+                        q_value = float(cross_sections_flow[j, i])  # j=时间步（行），i=断面（列）
                         depth_value = 0  # DEPTH字段暂填0
                         
                         section_records.append((

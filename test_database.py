@@ -128,10 +128,9 @@ def test_database_and_post():
         # 加载断面映射
         section_mapping = load_section_mapping()
         
-        # 获取断面数据的时间步数（cross_sections_ws的行数就是时间步数）
+        # 获取断面数据的时间步数（使用cross_sections_ws的实际列数）
         num_cross_section_timesteps = cross_sections_ws.shape[0] if len(cross_sections_ws.shape) > 1 else len(time_date_stamp)
         logger.info(f"断面数据实际时间步数: {num_cross_section_timesteps}")
-        logger.info(f"断面数量: {cross_sections_ws.shape[1]}")
         
         # 准备FLOOD_SECTION批量插入数据
         section_records = []
@@ -142,11 +141,10 @@ def test_database_and_post():
                 logger.info(f"处理断面 [{i}] {section_name} (ID: {section_id})")
                 
                 # 为每个时间步创建一条记录（使用断面数据实际的时间步数）
-                # cross_sections_ws结构：行=时间步，列=断面ID
                 for j in range(num_cross_section_timesteps):
                     time_str = time_date_stamp[j].decode('utf-8') if isinstance(time_date_stamp[j], bytes) else str(time_date_stamp[j])
-                    z_value = float(cross_sections_ws[j, i])  # j=时间步（行），i=断面（列）
-                    q_value = float(cross_sections_flow[j, i])  # j=时间步（行），i=断面（列）
+                    z_value = float(cross_sections_ws[j, i])
+                    q_value = float(cross_sections_flow[j, i])
                     depth_value = 0  # DEPTH字段暂填0
                     
                     section_records.append((
@@ -197,48 +195,6 @@ def test_database_and_post():
         
     except Exception as e:
         logger.error(f"写入数据库时出错: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-    
-    # ========== 调用POST接口 ==========
-    try:
-        logger.info("开始调用POST接口...")
-        
-        if scheme_name:
-            # 调用POST接口，上传ZIP文件
-            post_url = PARSE_HOST
-            # 注意：这里需要使用实际的ZIP文件路径
-            # 测试时请根据实际情况修改ZIP文件路径
-            zip_file_path = os.path.join(output_path, f"{scheme_name}.zip")
-            
-            logger.info(f"POST URL: {post_url}")
-            logger.info(f"ZIP文件路径: {zip_file_path}")
-            
-            # 检查ZIP文件是否存在
-            if not os.path.exists(zip_file_path):
-                logger.warning(f"ZIP文件不存在: {zip_file_path}，跳过POST接口调用")
-            else:
-                # 以multipart/form-data格式上传文件
-                with open(zip_file_path, 'rb') as f:
-                    files = {'file': (f"{scheme_name}.zip", f, 'application/zip')}
-                    data = {'id': scheme_name}
-                    
-                    logger.info(f"上传文件: {scheme_name}.zip, ID: {scheme_name}")
-                    
-                    response = requests.post(post_url, files=files, data=data, timeout=30)
-                    
-                    logger.info(f"响应状态码: {response.status_code}")
-                    logger.info(f"响应内容: {response.text}")
-                    
-                    if response.status_code == 200:
-                        logger.info("POST接口调用成功")
-                    else:
-                        logger.warning(f"POST接口返回非200状态码")
-        else:
-            logger.warning("scheme_name为空，跳过POST接口调用")
-            
-    except Exception as e:
-        logger.error(f"调用POST接口时出错: {e}")
         import traceback
         logger.error(traceback.format_exc())
 
